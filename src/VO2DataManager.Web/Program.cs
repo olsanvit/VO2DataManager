@@ -13,6 +13,7 @@ using Services;
 using Blazored.LocalStorage;
 using Blazored.Modal;
 using Blazored.SessionStorage;
+using VO2DataManager.Services;
 using ApexCharts;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -103,6 +104,7 @@ builder.Services.AddScoped(provider =>
         "BlazorVO2DataManager"
     ));
 builder.Services.AddSingleton<ThemeService>(_ => new ThemeService(builder.Configuration));
+builder.Services.AddScoped<AiDataSyncService>();
 builder.Services.AddDistributedMemoryCache();
 builder.Services.AddSession(options =>
 {
