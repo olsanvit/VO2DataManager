@@ -73,7 +73,6 @@ var dataSource = dsb.Build();
 builder.Services.AddDbContextFactory<AppDbContextAiData>(options =>
     options.UseNpgsql(dataSource, npgsqlOptions =>
     {
-        npgsqlOptions.MigrationsAssembly("SharedServices");
         npgsqlOptions.CommandTimeout(180);
         npgsqlOptions.EnableRetryOnFailure(
             maxRetryCount: 5,
@@ -96,13 +95,6 @@ builder.Services.AddBlazoredSessionStorage();
 builder.Services.AddApexCharts();
 builder.Services.AddScoped<ErrorService<AppDbContextAiData>>();
 builder.Services.AddScoped<EfCoreService<AppDbContextAiData>>();
-builder.Services.AddScoped(provider =>
-    new MigrationService<AppDbContextAiData>(
-        provider,
-        provider.GetRequiredService<ILogger<MigrationService<AppDbContextAiData>>>(),
-        "SharedServices",
-        "BlazorVO2DataManager"
-    ));
 builder.Services.AddSingleton<ThemeService>(_ => new ThemeService(builder.Configuration));
 builder.Services.AddScoped<AiDataSyncService>();
 builder.Services.AddDistributedMemoryCache();
@@ -131,12 +123,6 @@ app.UseForwardedHeaders(new ForwardedHeadersOptions
 {
     ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto
 });
-
-using (var scope = app.Services.CreateScope())
-{
-    var migrationService = scope.ServiceProvider.GetRequiredService<MigrationService<AppDbContextAiData>>();
-    await migrationService.MigrateDatabaseAsync();
-}
 
 if (!app.Environment.IsDevelopment())
 {

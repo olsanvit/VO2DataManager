@@ -17,10 +17,7 @@ public class AppDbContextAiDataDesignTimeFactory : IDesignTimeDbContextFactory<A
             "Pooling=true;Timeout=50;Command Timeout=120;Ssl Mode=Disable";
 
         var optionsBuilder = new DbContextOptionsBuilder<AppDbContextAiData>();
-        optionsBuilder.UseNpgsql(cs, o =>
-        {
-            o.MigrationsAssembly("SharedServices");
-        });
+        optionsBuilder.UseNpgsql(cs);
 
         return new AppDbContextAiData(optionsBuilder.Options);
     }
