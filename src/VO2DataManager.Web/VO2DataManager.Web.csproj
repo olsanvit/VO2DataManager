@@ -17,8 +17,8 @@
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
-    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.7" />
-    <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" Version="10.0.7" />
+    <!-- Microsoft.Extensions.DependencyInjection removed - already in FrameworkReference -->
+    <!-- Microsoft.Extensions.Hosting.Abstractions removed - already in FrameworkReference -->
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.1" />
     <PackageReference Include="Blazored.Modal" Version="7.3.0" />
     <PackageReference Include="Blazored.LocalStorage" Version="4.5.0" />
