@@ -1,0 +1,170 @@
+@page "/admin"
+@rendermode InteractiveServer
+@attribute [Authorize(Roles = "Admin")]
+
+@using MercenariesAndBeasts.Infrastructure
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Identity
+@using Microsoft.EntityFrameworkCore
+@using SharedServices.Models.AiData
+@inject UserManager<AppUser> UserManager
+@inject IDbContextFactory<AppDbContextAiData> DbFactory
+
+<PageTitle>Admin — VO2DataManager</PageTitle>
+
+<div class="dash-switcher mb-3">
+    <h4 class="m-0">Admin — VO2DataManager</h4>
+</div>
+
+@if (_loading)
+{
+    <div class="text-center py-5"><div class="spinner-border" role="status"></div></div>
+}
+else
+{
+    <!-- Statistiky -->
+    <div class="row g-3 mb-3">
+        <div class="col-6 col-md-2">
+            <div class="card text-center">
+                <div class="card-body py-2">
+                    <div class="fs-4 fw-bold text-primary">@_userCount</div>
+                    <div class="text-muted small">Uživatelé</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md-2">
+            <div class="card text-center">
+                <div class="card-body py-2">
+                    <div class="fs-4 fw-bold text-info">@_artistCount</div>
+                    <div class="text-muted small">Interpreti</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md-2">
+            <div class="card text-center">
+                <div class="card-body py-2">
+                    <div class="fs-4 fw-bold text-success">@_albumCount</div>
+                    <div class="text-muted small">Alba</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md-2">
+            <div class="card text-center">
+                <div class="card-body py-2">
+                    <div class="fs-4 fw-bold text-warning">@_songCount</div>
+                    <div class="text-muted small">Skladby</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md-2">
+            <div class="card text-center">
+                <div class="card-body py-2">
+                    <div class="fs-4 fw-bold text-danger">@_amFootballLeagueCount</div>
+                    <div class="text-muted small">Am.Football ligy</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md-2">
+            <div class="card text-center">
+                <div class="card-body py-2">
+                    <div class="fs-4 fw-bold text-secondary">@_baseballLeagueCount</div>
+                    <div class="text-muted small">Baseball ligy</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-3">
+        <!-- Uživatelé -->
+        <div class="col-md-4">
+            <div class="card h-100">
+                <div class="card-header fw-bold">Uživatelé (@_userCount)</div>
+                <div class="card-body p-0">
+                    <table class="table table-sm table-hover mb-0">
+                        <thead class="table-secondary">
+                            <tr><th>Email</th><th>Role</th></tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var u in _users)
+                            {
+                                <tr>
+                                    <td class="small">@u.Email</td>
+                                    <td>
+                                        @if (u.IsAdmin)
+                                        { <span class="badge bg-warning text-dark">Admin</span> }
+                                        else
+                                        { <span class="badge bg-secondary">User</span> }
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Top interpreti -->
+        <div class="col-md-8">
+            <div class="card h-100">
+                <div class="card-header fw-bold">Top 20 interpretů (dle abecedy)</div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-sm table-hover mb-0">
+                            <thead class="table-secondary">
+                                <tr><th>Interpret</th></tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var a in _recentArtists)
+                                {
+                                    <tr>
+                                        <td class="small">@a.Name</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Databázový přehled -->
+    <div class="card mt-3">
+        <div class="card-header fw-bold">Přehled AI dat</div>
+        <div class="card-body">
+            <div class="row g-2 text-center">
+                <div class="col-6 col-md-3"><strong>@_artistCount</strong> <span class="text-muted small">Interpreti</span></div>
+                <div class="col-6 col-md-3"><strong>@_albumCount</strong> <span class="text-muted small">Alba</span></div>
+                <div class="col-6 col-md-3"><strong>@_songCount</strong> <span class="text-muted small">Skladby</span></div>
+                <div class="col-6 col-md-3"><strong>@_amFootballLeagueCount</strong> <span class="text-muted small">Am.Football ligy</span></div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private bool _loading = true;
+    private int _userCount, _artistCount, _albumCount, _songCount, _amFootballLeagueCount, _baseballLeagueCount;
+    private List<AppUser> _users = new();
+    private List<Artist> _recentArtists = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        _users = UserManager.Users.OrderByDescending(u => u.IsAdmin).ToList();
+        _userCount = _users.Count;
+
+        await using var db = await DbFactory.CreateDbContextAsync();
+        _artistCount           = await db.Artists.CountAsync();
+        _albumCount            = await db.Albums.CountAsync();
+        _songCount             = await db.Songs.CountAsync();
+        _amFootballLeagueCount = await db.AmericanFootballLeagues.CountAsync();
+        _baseballLeagueCount   = await db.BaseballLeagues.CountAsync();
+
+        _recentArtists = await db.Artists
+            .OrderBy(a => a.Name)
+            .Take(20)
+            .ToListAsync();
+
+        _loading = false;
+    }
+}
