@@ -1,6 +1,10 @@
+using BlazorVO2DataManager;
 using BlazorVO2DataManager.Components;
+using MercenariesAndBeasts.Infrastructure;
+using MercenariesAndBeasts.Infrastructure.Auth;
 using Microsoft.AspNetCore.Components.Server;
 using Microsoft.AspNetCore.HttpOverrides;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
@@ -85,6 +89,11 @@ builder.Services.AddDbContextFactory<AppDbContextAiData>(options =>
 builder.Services.AddScoped<AppDbContextAiData>(sp =>
     sp.GetRequiredService<IDbContextFactory<AppDbContextAiData>>().CreateDbContext());
 
+// ── Identity context (same DB as AiData, separate EF context for Identity tables) ──
+builder.Services.AddDbContext<AppDbContextAiDataIdentity>(options =>
+    options.UseNpgsql(cs!));
+builder.Services.AddMabAuth<AppDbContextAiDataIdentity>(builder.Configuration);
+
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddCors();
 builder.Services.AddScoped<ToastService>();
@@ -124,6 +133,10 @@ app.UseForwardedHeaders(new ForwardedHeadersOptions
     ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto
 });
 
+var pathBase = builder.Configuration["PathBase"];
+if (!string.IsNullOrWhiteSpace(pathBase))
+    app.UsePathBase(pathBase);
+
 if (!app.Environment.IsDevelopment())
 {
     app.UseExceptionHandler("/Error", createScopeForErrors: true);
@@ -136,11 +149,62 @@ if (!app.Environment.IsProduction())
 app.UseStaticFiles();
 app.UseCors(b => b.AllowAnyOrigin().AllowAnyMethod().AllowAnyHeader());
 app.UseSession();
+app.UseAuthentication();
+app.UseAuthorization();
 app.UseAntiforgery();
+
+// ── Google OAuth endpoints ────────────────────────────────────────────────
+app.MapPost("/auth/google/start", (string? returnUrl, Microsoft.AspNetCore.Authentication.IAuthenticationService _, HttpContext ctx) =>
+{
+    var redirectUrl = $"/auth/google/callback?returnUrl={Uri.EscapeDataString(returnUrl ?? "/")}";
+    var props = new Microsoft.AspNetCore.Authentication.AuthenticationProperties { RedirectUri = redirectUrl };
+    return Results.Challenge(props, ["Google"]);
+});
+
+app.MapGet("/auth/google/callback", async (
+    HttpContext ctx,
+    Microsoft.AspNetCore.Identity.SignInManager<AppUser> signInManager,
+    Microsoft.AspNetCore.Identity.UserManager<AppUser> userManager,
+    string? returnUrl) =>
+{
+    var info = await signInManager.GetExternalLoginInfoAsync();
+    if (info is null) return Results.Redirect("/login?error=external");
+
+    var result = await signInManager.ExternalLoginSignInAsync(info.LoginProvider, info.ProviderKey, false);
+    if (result.Succeeded) return Results.Redirect(returnUrl ?? "/");
+
+    var email = info.Principal.FindFirst(System.Security.Claims.ClaimTypes.Email)?.Value ?? "";
+    var user  = await userManager.FindByEmailAsync(email);
+    if (user is null)
+    {
+        user = new AppUser { UserName = email, Email = email, EmailConfirmed = true };
+        await userManager.CreateAsync(user);
+    }
+    await userManager.AddLoginAsync(user, info);
+    await signInManager.SignInAsync(user, false);
+    return Results.Redirect(returnUrl ?? "/");
+});
+
+app.MapGet("/logout", async (HttpContext ctx, Microsoft.AspNetCore.Identity.SignInManager<AppUser> signInManager) =>
+{
+    await signInManager.SignOutAsync();
+    return Results.Redirect("/");
+});
 
 app.MapStaticAssets();
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
+
+// ── Migrate Identity DB + Seed admin ─────────────────────────────────────
+using (var scope = app.Services.CreateScope())
+{
+    var db          = scope.ServiceProvider.GetRequiredService<AppDbContextAiDataIdentity>();
+    var userManager = scope.ServiceProvider.GetRequiredService<UserManager<AppUser>>();
+    var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
+    await db.Database.MigrateAsync();
+    await SeedAdminAsync(userManager, roleManager);
+}
+
 
 app.Lifetime.ApplicationStopping.Register(() =>
     Log.Warning("Application stopping — flushing logs..."));
@@ -148,3 +212,29 @@ app.Lifetime.ApplicationStopping.Register(() =>
 try { app.Run(); }
 catch (Exception ex) { Log.Fatal(ex, "Host terminated unexpectedly"); }
 finally { Log.CloseAndFlush(); }
+
+// ── Seed helpers ──────────────────────────────────────────────────────────
+static async Task SeedAdminAsync(UserManager<AppUser> userManager, RoleManager<IdentityRole> roleManager)
+{
+    const string adminRole = "Admin";
+    if (!await roleManager.RoleExistsAsync(adminRole))
+        await roleManager.CreateAsync(new IdentityRole(adminRole));
+
+    await EnsureAdminAsync(userManager, adminRole, "admin@local",             "admin", "Admin123.");
+    await EnsureAdminAsync(userManager, adminRole, "olsanskyvitek@gmail.com", "vitek", "Vitek575");
+}
+
+static async Task EnsureAdminAsync(UserManager<AppUser> userManager, string adminRole,
+    string email, string username, string password)
+{
+    var user = await userManager.FindByEmailAsync(email);
+    if (user is null)
+    {
+        user = new AppUser { UserName = username, Email = email, EmailConfirmed = true, IsAdmin = true };
+        var result = await userManager.CreateAsync(user, password);
+        if (!result.Succeeded)
+            throw new Exception($"Failed to create {email}: {string.Join(", ", result.Errors.Select(e => e.Description))}");
+    }
+    if (!await userManager.IsInRoleAsync(user, adminRole))
+        await userManager.AddToRoleAsync(user, adminRole);
+}
