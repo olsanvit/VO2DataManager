@@ -1,0 +1,125 @@
+@page "/amfootball"
+@rendermode InteractiveServer
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+
+@using Microsoft.EntityFrameworkCore
+@using SharedServices.Models.AiData
+@inject IDbContextFactory<AppDbContextAiData> DbFactory
+
+<PageTitle>Americký fotbal — VO2 Data Manager</PageTitle>
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h4 class="m-0"><i class="bi bi-trophy me-2"></i>Americký fotbal</h4>
+</div>
+
+@if (_loading)
+{
+    <div class="text-center py-5"><div class="spinner-border" role="status"></div></div>
+}
+else
+{
+    <ul class="nav nav-tabs mb-3">
+        <li class="nav-item">
+            <button class="nav-link @(_tab == 0 ? "active" : "")" @onclick='() => SetTab(0)'>Týmy</button>
+        </li>
+        <li class="nav-item">
+            <button class="nav-link @(_tab == 1 ? "active" : "")" @onclick='() => SetTab(1)'>Ligy</button>
+        </li>
+        <li class="nav-item">
+            <button class="nav-link @(_tab == 2 ? "active" : "")" @onclick='() => SetTab(2)'>Sezóny</button>
+        </li>
+    </ul>
+
+    @if (_tab == 0)
+    {
+        <div class="row g-2 mb-3">
+            <div class="col-md-4">
+                <input class="form-control form-control-sm" placeholder="Hledat tým…"
+                       @bind="_search" @bind:event="oninput" />
+            </div>
+            <div class="col-auto"><span class="badge bg-secondary">@FilteredTeams.Count() týmů</span></div>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-sm table-hover">
+                <thead class="table-secondary">
+                    <tr><th>Název</th><th>Norm. název</th><th>Zdroj</th></tr>
+                </thead>
+                <tbody>
+                    @foreach (var t in FilteredTeams.Take(100))
+                    {
+                        <tr>
+                            <td class="fw-semibold">@t.Name</td>
+                            <td class="text-muted small">@t.NormalizedName</td>
+                            <td class="text-muted small">@t.ExternalSource</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+    else if (_tab == 1)
+    {
+        <div class="table-responsive">
+            <table class="table table-sm table-hover">
+                <thead class="table-secondary">
+                    <tr><th>Název</th><th>Norm. název</th><th>Zdroj</th></tr>
+                </thead>
+                <tbody>
+                    @foreach (var l in _leagues)
+                    {
+                        <tr>
+                            <td class="fw-semibold">@l.Name</td>
+                            <td class="text-muted small">@l.NormalizedName</td>
+                            <td class="text-muted small">@l.ExternalSource</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+    else
+    {
+        <div class="table-responsive">
+            <table class="table table-sm table-hover">
+                <thead class="table-secondary">
+                    <tr><th>Název</th><th>Norm. název</th><th>Zdroj</th></tr>
+                </thead>
+                <tbody>
+                    @foreach (var s in _seasons)
+                    {
+                        <tr>
+                            <td class="fw-semibold">@s.Name</td>
+                            <td class="text-muted small">@s.NormalizedName</td>
+                            <td class="text-muted small">@s.ExternalSource</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+}
+
+@code {
+    private bool _loading = true;
+    private int _tab = 0;
+    private string _search = string.Empty;
+
+    private List<AmericanFootballTeam> _teams = new();
+    private List<AmericanFootballLeague> _leagues = new();
+    private List<AmericanFootballSeason> _seasons = new();
+
+    private IEnumerable<AmericanFootballTeam> FilteredTeams => string.IsNullOrWhiteSpace(_search)
+        ? _teams
+        : _teams.Where(t => t.Name != null && t.Name.Contains(_search, StringComparison.OrdinalIgnoreCase));
+
+    protected override async Task OnInitializedAsync()
+    {
+        await using var db = await DbFactory.CreateDbContextAsync();
+        _teams   = await db.AmericanFootballTeams.OrderBy(t => t.Name).ToListAsync();
+        _leagues = await db.AmericanFootballLeagues.OrderBy(l => l.Name).ToListAsync();
+        _seasons = await db.AmericanFootballSeasons.OrderBy(s => s.Name).ToListAsync();
+        _loading = false;
+    }
+
+    private void SetTab(int tab) { _tab = tab; _search = string.Empty; }
+}

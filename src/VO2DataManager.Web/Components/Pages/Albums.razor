@@ -1,0 +1,103 @@
+@page "/albums"
+@rendermode InteractiveServer
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+
+@using Microsoft.EntityFrameworkCore
+@using SharedServices.Models.AiData
+@inject IDbContextFactory<AppDbContextAiData> DbFactory
+
+<PageTitle>Alba — VO2 Data Manager</PageTitle>
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h4 class="m-0"><i class="bi bi-vinyl me-2"></i>Alba</h4>
+</div>
+
+@if (_loading)
+{
+    <div class="text-center py-5"><div class="spinner-border" role="status"></div></div>
+}
+else
+{
+    <div class="row g-2 mb-3">
+        <div class="col-md-4">
+            <input class="form-control form-control-sm" placeholder="Hledat album nebo interpreta…"
+                   @bind="_search" @bind:event="oninput" @bind:after="OnSearchChanged" />
+        </div>
+        <div class="col-auto">
+            <span class="badge bg-secondary">@_total alb</span>
+        </div>
+    </div>
+
+    <div class="table-responsive">
+        <table class="table table-sm table-hover">
+            <thead class="table-secondary">
+                <tr>
+                    <th>Název</th>
+                    <th>Interpret</th>
+                    <th>Rok vydání</th>
+                    <th>Skóre</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var a in _albums)
+                {
+                    <tr>
+                        <td class="fw-semibold">@a.Title</td>
+                        <td class="text-muted">@a.ArtistDisplay</td>
+                        <td class="text-muted small">@a.ReleaseYear</td>
+                        <td class="text-muted small">@a.ConfidenceScore</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+
+    <div class="d-flex gap-2 align-items-center">
+        <button class="btn btn-outline-secondary btn-sm" disabled="@(_page == 0)" @onclick="PrevPage">← Předchozí</button>
+        <span class="small text-muted">Strana @(_page + 1) (celkem @_total)</span>
+        <button class="btn btn-outline-secondary btn-sm" disabled="@(_albums.Count < _pageSize)" @onclick="NextPage">Další →</button>
+    </div>
+
+    @if (!_albums.Any())
+    {
+        <p class="text-muted text-center mt-3">Žádné záznamy.</p>
+    }
+}
+
+@code {
+    private bool _loading = true;
+    private string _search = string.Empty;
+    private List<Album> _albums = new();
+    private int _page = 0;
+    private const int _pageSize = 50;
+    private int _total = 0;
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        await using var db = await DbFactory.CreateDbContextAsync();
+        var query = db.Albums.AsQueryable();
+        if (!string.IsNullOrWhiteSpace(_search))
+            query = query.Where(a =>
+                (a.Title != null && a.Title.Contains(_search)) ||
+                (a.ArtistDisplay != null && a.ArtistDisplay.Contains(_search)));
+        _total = await query.CountAsync();
+        _albums = await query
+            .OrderBy(a => a.ArtistDisplay).ThenBy(a => a.ReleaseYear)
+            .Skip(_page * _pageSize)
+            .Take(_pageSize)
+            .ToListAsync();
+        _loading = false;
+    }
+
+    private async Task OnSearchChanged()
+    {
+        _page = 0;
+        await LoadAsync();
+    }
+
+    private async Task PrevPage() { if (_page > 0) { _page--; await LoadAsync(); } }
+    private async Task NextPage() { _page++; await LoadAsync(); }
+}

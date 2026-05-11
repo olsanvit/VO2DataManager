@@ -1,0 +1,103 @@
+@page "/artists"
+@rendermode InteractiveServer
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+
+@using Microsoft.EntityFrameworkCore
+@using SharedServices.Models.AiData
+@inject IDbContextFactory<AppDbContextAiData> DbFactory
+
+<PageTitle>Interpreti — VO2 Data Manager</PageTitle>
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h4 class="m-0"><i class="bi bi-music-note-beamed me-2"></i>Interpreti</h4>
+</div>
+
+@if (_loading)
+{
+    <div class="text-center py-5"><div class="spinner-border" role="status"></div></div>
+}
+else
+{
+    <div class="row g-2 mb-3">
+        <div class="col-md-4">
+            <input class="form-control form-control-sm" placeholder="Hledat interpreta…"
+                   @bind="_search" @bind:event="oninput" @bind:after="OnSearchChanged" />
+        </div>
+        <div class="col-auto">
+            <span class="badge bg-secondary">@_total interpretů</span>
+        </div>
+    </div>
+
+    <div class="table-responsive">
+        <table class="table table-sm table-hover">
+            <thead class="table-secondary">
+                <tr>
+                    <th>Název</th>
+                    <th>Sort Name</th>
+                    <th>Aktivní od</th>
+                    <th>Aktivní do</th>
+                    <th>Skóre</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var a in _artists)
+                {
+                    <tr>
+                        <td class="fw-semibold">@a.Name</td>
+                        <td class="text-muted small">@a.SortName</td>
+                        <td class="text-muted small">@a.ActiveFromYear</td>
+                        <td class="text-muted small">@a.ActiveToYear</td>
+                        <td class="text-muted small">@a.ConfidenceScore</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+
+    <div class="d-flex gap-2 align-items-center">
+        <button class="btn btn-outline-secondary btn-sm" disabled="@(_page == 0)" @onclick="PrevPage">← Předchozí</button>
+        <span class="small text-muted">Strana @(_page + 1) (celkem @_total)</span>
+        <button class="btn btn-outline-secondary btn-sm" disabled="@(_artists.Count < _pageSize)" @onclick="NextPage">Další →</button>
+    </div>
+
+    @if (!_artists.Any())
+    {
+        <p class="text-muted text-center mt-3">Žádné záznamy.</p>
+    }
+}
+
+@code {
+    private bool _loading = true;
+    private string _search = string.Empty;
+    private List<Artist> _artists = new();
+    private int _page = 0;
+    private const int _pageSize = 50;
+    private int _total = 0;
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        await using var db = await DbFactory.CreateDbContextAsync();
+        var query = db.Artists.AsQueryable();
+        if (!string.IsNullOrWhiteSpace(_search))
+            query = query.Where(a => a.Name != null && a.Name.Contains(_search));
+        _total = await query.CountAsync();
+        _artists = await query
+            .OrderBy(a => a.SortName ?? a.Name)
+            .Skip(_page * _pageSize)
+            .Take(_pageSize)
+            .ToListAsync();
+        _loading = false;
+    }
+
+    private async Task OnSearchChanged()
+    {
+        _page = 0;
+        await LoadAsync();
+    }
+
+    private async Task PrevPage() { if (_page > 0) { _page--; await LoadAsync(); } }
+    private async Task NextPage() { _page++; await LoadAsync(); }
+}
