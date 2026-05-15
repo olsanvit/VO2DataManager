@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using SharedServices;
 using System.Text;
 
@@ -17,13 +18,16 @@ public class AiDataSyncService
 {
     private readonly IDbContextFactory<AppDbContextAiData> _factory;
     private readonly ILogger<AiDataSyncService> _log;
+    private readonly IConfiguration _config;
 
     public AiDataSyncService(
         IDbContextFactory<AppDbContextAiData> factory,
-        ILogger<AiDataSyncService> log)
+        ILogger<AiDataSyncService> log,
+        IConfiguration config)
     {
         _factory = factory;
         _log = log;
+        _config = config;
     }
 
     // ────────────────────────────────────────────────────────────────────────
@@ -82,15 +86,17 @@ public class AiDataSyncService
         else
         {
             _log.LogWarning("AiDataSyncService: {Report}", sb.ToString());
+            // Connection string pro scaffold — bez hesla v logu
+            var scaffoldCs = _config.GetConnectionString("AiDataConnection") ?? "<viz appsettings — AiDataConnection>";
             _log.LogWarning(
                 "AiDataSyncService: Pro aktualizaci modelů spusť:\n" +
-                "dotnet ef dbcontext scaffold " +
-                "\"Host=100.99.239.94;Port=5432;Database=AIData;Username=roundnet;Password=kindred;Ssl Mode=Disable\" " +
+                "dotnet ef dbcontext scaffold \"{Cs}\" " +
                 "Npgsql.EntityFrameworkCore.PostgreSQL " +
                 "-s src/VO2DataManager.Web -p src/SharedServices/SharedServices " +
                 "--output-dir Models/AiData --context AppDbContextAiDataScaffold " +
                 "--context-dir . --namespace SharedServices.Models.AiData " +
-                "--context-namespace SharedServices --no-onconfiguring --force");
+                "--context-namespace SharedServices --no-onconfiguring --force",
+                scaffoldCs);
         }
 
         _log.LogInformation("AiDataSyncService: dokončen.");

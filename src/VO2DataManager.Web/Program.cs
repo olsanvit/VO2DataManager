@@ -146,7 +146,7 @@ if (!app.Environment.IsDevelopment())
 if (!app.Environment.IsProduction())
     app.UseHttpsRedirection();
 
-app.UseStaticFiles();
+// UseStaticFiles() odstraněno — MapStaticAssets() dole pokrývá static files s .NET 10 optimalizacemi
 app.UseCors(b => b.AllowAnyOrigin().AllowAnyMethod().AllowAnyHeader());
 app.UseSession();
 app.UseAuthentication();
