@@ -10,7 +10,65 @@
 
 <div class="d-flex justify-content-between align-items-center mb-3">
     <h4 class="m-0"><i class="bi bi-music-note-beamed me-2"></i>Interpreti</h4>
+    <button class="btn btn-primary btn-sm" @onclick="ShowAddForm">
+        <i class="bi bi-plus-lg me-1"></i>Přidat
+    </button>
 </div>
+
+@if (!string.IsNullOrEmpty(_error))
+{
+    <div class="alert alert-danger alert-dismissible" role="alert">
+        @_error
+        <button type="button" class="btn-close" @onclick="() => _error = null"></button>
+    </div>
+}
+
+@if (_showForm)
+{
+    <div class="card mb-3">
+        <div class="card-header">
+            <strong>@(_editId.HasValue ? "Upravit interpreta" : "Nový interpret")</strong>
+        </div>
+        <div class="card-body">
+            <div class="row g-2">
+                <div class="col-md-4">
+                    <label class="form-label small">Název</label>
+                    <input class="form-control form-control-sm" @bind="_form.Name" placeholder="Název interpreta" />
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label small">Sort Name</label>
+                    <input class="form-control form-control-sm" @bind="_form.SortName" placeholder="Sort name" />
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label small">Aktivní od</label>
+                    <input type="number" class="form-control form-control-sm" @bind="_form.ActiveFromYear" placeholder="Rok" />
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label small">Aktivní do</label>
+                    <input type="number" class="form-control form-control-sm" @bind="_form.ActiveToYear" placeholder="Rok" />
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label small">Skóre</label>
+                    <input type="number" class="form-control form-control-sm" @bind="_form.ConfidenceScore" placeholder="Skóre" />
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label small">Webová stránka</label>
+                    <input class="form-control form-control-sm" @bind="_form.OfficialWebsiteUrl" placeholder="https://..." />
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label small">GuidId</label>
+                    <input class="form-control form-control-sm" @bind="_form.GuidId" placeholder="GUID" />
+                </div>
+            </div>
+            <div class="mt-3 d-flex gap-2">
+                <button class="btn btn-success btn-sm" @onclick="SaveAsync">
+                    <i class="bi bi-check-lg me-1"></i>Uložit
+                </button>
+                <button class="btn btn-secondary btn-sm" @onclick="HideForm">Zrušit</button>
+            </div>
+        </div>
+    </div>
+}
 
 @if (_loading)
 {
@@ -37,6 +95,8 @@ else
                     <th>Aktivní od</th>
                     <th>Aktivní do</th>
                     <th>Skóre</th>
+                    <th>Web</th>
+                    <th style="width:90px"></th>
                 </tr>
             </thead>
             <tbody>
@@ -48,6 +108,24 @@ else
                         <td class="text-muted small">@a.ActiveFromYear</td>
                         <td class="text-muted small">@a.ActiveToYear</td>
                         <td class="text-muted small">@a.ConfidenceScore</td>
+                        <td class="text-muted small">
+                            @if (!string.IsNullOrEmpty(a.OfficialWebsiteUrl))
+                            {
+                                <a href="@a.OfficialWebsiteUrl" target="_blank" rel="noopener noreferrer">
+                                    <i class="bi bi-box-arrow-up-right"></i>
+                                </a>
+                            }
+                        </td>
+                        <td>
+                            <button class="btn btn-outline-secondary btn-sm me-1" title="Upravit"
+                                    @onclick="() => ShowEditForm(a)">
+                                <i class="bi bi-pencil"></i>
+                            </button>
+                            <button class="btn btn-danger btn-sm" title="Smazat"
+                                    @onclick="() => DeleteAsync(a.Id)">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </td>
                     </tr>
                 }
             </tbody>
@@ -74,6 +152,23 @@ else
     private const int _pageSize = 50;
     private int _total = 0;
 
+    private bool _showForm = false;
+    private int? _editId = null;
+    private string? _error = null;
+
+    private ArtistFormModel _form = new();
+
+    private class ArtistFormModel
+    {
+        public string? Name { get; set; }
+        public string? SortName { get; set; }
+        public int? ActiveFromYear { get; set; }
+        public int? ActiveToYear { get; set; }
+        public int? ConfidenceScore { get; set; }
+        public string? OfficialWebsiteUrl { get; set; }
+        public string? GuidId { get; set; }
+    }
+
     protected override async Task OnInitializedAsync() => await LoadAsync();
 
     private async Task LoadAsync()
@@ -90,6 +185,100 @@ else
             .Take(_pageSize)
             .ToListAsync();
         _loading = false;
+    }
+
+    private void ShowAddForm()
+    {
+        _editId = null;
+        _form = new ArtistFormModel();
+        _error = null;
+        _showForm = true;
+    }
+
+    private void ShowEditForm(Artist a)
+    {
+        _editId = a.Id;
+        _form = new ArtistFormModel
+        {
+            Name = a.Name,
+            SortName = a.SortName,
+            ActiveFromYear = a.ActiveFromYear,
+            ActiveToYear = a.ActiveToYear,
+            ConfidenceScore = a.ConfidenceScore,
+            OfficialWebsiteUrl = a.OfficialWebsiteUrl,
+            GuidId = a.GuidId
+        };
+        _error = null;
+        _showForm = true;
+    }
+
+    private void HideForm()
+    {
+        _showForm = false;
+        _editId = null;
+        _error = null;
+    }
+
+    private async Task SaveAsync()
+    {
+        try
+        {
+            await using var db = await DbFactory.CreateDbContextAsync();
+            if (_editId.HasValue)
+            {
+                var existing = await db.Artists.FindAsync(_editId.Value);
+                if (existing != null)
+                {
+                    existing.Name = _form.Name;
+                    existing.SortName = _form.SortName;
+                    existing.ActiveFromYear = _form.ActiveFromYear;
+                    existing.ActiveToYear = _form.ActiveToYear;
+                    existing.ConfidenceScore = _form.ConfidenceScore;
+                    existing.OfficialWebsiteUrl = _form.OfficialWebsiteUrl;
+                    existing.GuidId = _form.GuidId;
+                }
+            }
+            else
+            {
+                var artist = new Artist
+                {
+                    Name = _form.Name,
+                    SortName = _form.SortName,
+                    ActiveFromYear = _form.ActiveFromYear,
+                    ActiveToYear = _form.ActiveToYear,
+                    ConfidenceScore = _form.ConfidenceScore,
+                    OfficialWebsiteUrl = _form.OfficialWebsiteUrl,
+                    GuidId = _form.GuidId
+                };
+                db.Artists.Add(artist);
+            }
+            await db.SaveChangesAsync();
+            HideForm();
+            await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+    }
+
+    private async Task DeleteAsync(int id)
+    {
+        try
+        {
+            await using var db = await DbFactory.CreateDbContextAsync();
+            var existing = await db.Artists.FindAsync(id);
+            if (existing != null)
+            {
+                db.Remove(existing);
+                await db.SaveChangesAsync();
+            }
+            await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
     }
 
     private async Task OnSearchChanged()
