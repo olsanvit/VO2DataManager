@@ -6,13 +6,10 @@ using System.Text;
 namespace VO2DataManager.Services;
 
 /// <summary>
-/// Denní služba, která porovnává aktuální schéma databáze AIData
-/// s očekávaným stavem (dle DbContextu) a loguje rozdíly.
-///
-/// Spouštění: každý den přes WebsiteTask "AiDataSchemaSync".
-/// Při detekci nových/odstraněných tabulek zapíše varování do logu.
-/// Pro re-scaffold spusť ručně:
-///   dotnet ef dbcontext scaffold ... --force
+/// Daily background service that compares the current AIData database schema against the
+/// expected state defined by <see cref="AppDbContextAiData"/> and logs any discrepancies.
+/// When new or removed tables are detected a warning is written to the log, prompting a manual
+/// re-scaffold with <c>dotnet ef dbcontext scaffold ... --force</c>.
 /// </summary>
 public class AiDataSyncService
 {
@@ -20,6 +17,12 @@ public class AiDataSyncService
     private readonly ILogger<AiDataSyncService> _log;
     private readonly IConfiguration _config;
 
+    /// <summary>
+    /// Initializes a new instance of <see cref="AiDataSyncService"/> with its required dependencies.
+    /// </summary>
+    /// <param name="factory">Factory used to create a short-lived <see cref="AppDbContextAiData"/> for each run.</param>
+    /// <param name="log">Logger to which sync results and warnings are written.</param>
+    /// <param name="config">Application configuration used to read the AIData connection string for the scaffold hint.</param>
     public AiDataSyncService(
         IDbContextFactory<AppDbContextAiData> factory,
         ILogger<AiDataSyncService> log,
@@ -31,9 +34,15 @@ public class AiDataSyncService
     }
 
     // ────────────────────────────────────────────────────────────────────────
-    // Hlavní metoda — volaná denně ze scheduleru / WebsiteTask
+    // Main method — called daily from the scheduler / WebsiteTask
     // ────────────────────────────────────────────────────────────────────────
 
+    /// <summary>
+    /// Executes the daily schema synchronisation check against the AIData database.
+    /// Tables present in the database but missing from the EF Core model — and vice versa — are
+    /// reported as warnings in the application log together with a scaffold command hint.
+    /// </summary>
+    /// <param name="ct">Cancellation token forwarded to all async database operations.</param>
     public async Task RunDailyAsync(CancellationToken ct = default)
     {
         _log.LogInformation("AiDataSyncService: spuštěn schema check.");
