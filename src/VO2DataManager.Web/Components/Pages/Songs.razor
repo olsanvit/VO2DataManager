@@ -5,6 +5,7 @@
 @using Microsoft.EntityFrameworkCore
 @using SharedServices.Models.AiData
 @inject IDbContextFactory<AppDbContextAiData> DbFactory
+@inject ToastService Toast
 
 <PageTitle>Skladby — VO2 Data Manager</PageTitle>
 
@@ -219,12 +220,14 @@ else
                 db.Songs.Add(song);
             }
             await db.SaveChangesAsync();
+            Toast.ShowSuccess("Uloženo", _editId.HasValue ? "Skladba byla úspěšně upravena." : "Skladba byla úspěšně přidána.");
             HideForm();
             await LoadAsync();
         }
         catch (Exception ex)
         {
             _error = ex.Message;
+            Toast.ShowError("Chyba", $"Nepodařilo se uložit: {ex.Message}");
         }
     }
 
@@ -238,12 +241,14 @@ else
             {
                 db.Remove(existing);
                 await db.SaveChangesAsync();
+                Toast.ShowSuccess("Smazáno", "Skladba byla úspěšně smazána.");
             }
             await LoadAsync();
         }
         catch (Exception ex)
         {
             _error = ex.Message;
+            Toast.ShowError("Chyba", $"Nepodařilo se smazat: {ex.Message}");
         }
     }
 
