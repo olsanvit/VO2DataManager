@@ -45,8 +45,8 @@ public class AlbumTests
         foreach (var year in validYears)
         {
             var album = new Album { ReleaseYear = year };
-            album.ReleaseYear.Should().BeGreaterOrEqualTo(1900);
-            album.ReleaseYear.Should().BeLessOrEqualTo(2030);
+            album.ReleaseYear.Should().BeGreaterThanOrEqualTo(1900);
+            album.ReleaseYear.Should().BeLessThanOrEqualTo(2030);
         }
     }
 
