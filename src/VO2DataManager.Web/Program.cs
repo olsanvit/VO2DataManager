@@ -96,6 +96,7 @@ builder.Services.AddMabAuth<AppDbContextAiDataIdentity>(builder.Configuration);
 
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddCors();
+builder.Services.AddHealthChecks();
 builder.Services.AddScoped<ToastService>();
 builder.Services.AddScoped<AlertService>();
 builder.Services.AddBlazoredModal();
@@ -128,6 +129,7 @@ TaskScheduler.UnobservedTaskException += (sender, e) =>
 };
 
 var app = builder.Build();
+app.MapHealthChecks("/health");
 app.UseForwardedHeaders(new ForwardedHeadersOptions
 {
     ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto
