@@ -104,11 +104,8 @@ else
         </table>
     </div>
 
-    <div class="d-flex gap-2 align-items-center">
-        <button class="btn btn-outline-secondary btn-sm" disabled="@(_page == 0)" @onclick="PrevPage">← Předchozí</button>
-        <span class="small text-muted">Strana @(_page + 1) (celkem @_total)</span>
-        <button class="btn btn-outline-secondary btn-sm" disabled="@(_songs.Count < _pageSize)" @onclick="NextPage">Další →</button>
-    </div>
+    <Paginator TotalItems="_total" PageSize="_pageSize" CurrentPage="_page"
+               OnPageChanged="async p => { _page = p; await LoadAsync(); }" />
 
     @if (!_songs.Any())
     {
@@ -120,7 +117,7 @@ else
     private bool _loading = true;
     private string _search = string.Empty;
     private List<Song> _songs = new();
-    private int _page = 0;
+    private int _page = 1;
     private const int _pageSize = 50;
     private int _total = 0;
 
@@ -157,7 +154,7 @@ else
         _total = await query.CountAsync();
         _songs = await query
             .OrderBy(s => s.Title)
-            .Skip(_page * _pageSize)
+            .Skip((_page - 1) * _pageSize)
             .Take(_pageSize)
             .ToListAsync();
         _loading = false;
@@ -254,10 +251,7 @@ else
 
     private async Task OnSearchChanged()
     {
-        _page = 0;
+        _page = 1;
         await LoadAsync();
     }
-
-    private async Task PrevPage() { if (_page > 0) { _page--; await LoadAsync(); } }
-    private async Task NextPage() { _page++; await LoadAsync(); }
 }

@@ -240,3 +240,5 @@ static async Task EnsureAdminAsync(UserManager<AppUser> userManager, string admi
     if (!await userManager.IsInRoleAsync(user, adminRole))
         await userManager.AddToRoleAsync(user, adminRole);
 }
+
+public partial class Program { }
