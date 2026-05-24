@@ -1,0 +1,280 @@
+@page "/import-songs"
+@rendermode InteractiveServer
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+
+@using Microsoft.EntityFrameworkCore
+@using SharedServices.Models.AiData
+@inject IDbContextFactory<AppDbContextAiData> DbFactory
+@inject ToastService Toast
+@inject IJSRuntime JS
+
+<PageTitle>Import skladeb — VO2 Data Manager</PageTitle>
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h4 class="m-0"><i class="bi bi-upload me-2"></i>Import skladeb</h4>
+</div>
+
+<div class="card mb-3">
+    <div class="card-body">
+        <h6 class="card-title">Instrukce</h6>
+        <p class="mb-1">CSV formát: <code>Název,Rok vydání,Délka (s)</code></p>
+        <p class="text-muted small mb-2">
+            Rok vydání a délka = celá čísla (mohou být prázdná). První řádek (hlavička) je přeskočen.
+            Formát odpovídá exportu ze stránky <a href="/songs">Skladby</a>.
+        </p>
+        <button class="btn btn-outline-secondary btn-sm" @onclick="DownloadSampleAsync">
+            <i class="bi bi-download me-1"></i>Stáhnout vzorový soubor
+        </button>
+    </div>
+</div>
+
+<div class="card mb-3">
+    <div class="card-body">
+        <h6 class="card-title">Nahrát CSV soubor</h6>
+        <InputFile OnChange="OnFileSelectedAsync" accept=".csv" class="form-control mb-2" disabled="@_importing" />
+        @if (!string.IsNullOrEmpty(_fileName))
+        {
+            <p class="text-muted small mb-0"><i class="bi bi-file-earmark-text me-1"></i>@_fileName</p>
+        }
+    </div>
+</div>
+
+@if (!string.IsNullOrEmpty(_error))
+{
+    <div class="alert alert-danger alert-dismissible" role="alert">
+        @_error
+        <button type="button" class="btn-close" @onclick="() => _error = null"></button>
+    </div>
+}
+
+@if (_parseErrors > 0)
+{
+    <div class="alert alert-warning">
+        <i class="bi bi-exclamation-triangle me-1"></i>
+        @_parseErrors řádků bylo přeskočeno kvůli chybám při parsování.
+    </div>
+}
+
+@if (_preview.Count > 0)
+{
+    <div class="card mb-3">
+        <div class="card-body">
+            <h6 class="card-title">Náhled (@_preview.Count z celkem @_allParsed.Count skladeb)</h6>
+            @if (_allParsed.Count > _preview.Count)
+            {
+                <p class="text-muted small mb-2">… a dalších @(_allParsed.Count - _preview.Count) řádků</p>
+            }
+            <div class="table-responsive">
+                <table class="table table-sm table-hover">
+                    <thead class="table-secondary">
+                        <tr>
+                            <th>Název</th>
+                            <th>Rok</th>
+                            <th>Délka</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var s in _preview)
+                        {
+                            <tr>
+                                <td class="fw-semibold">@s.Title</td>
+                                <td class="text-muted small">@s.ReleaseYear</td>
+                                <td class="text-muted small">@FormatDuration(s.DurationSeconds)</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+
+            <button class="btn btn-success" @onclick="ImportAsync" disabled="@_importing">
+                @if (_importing)
+                {
+                    <span class="spinner-border spinner-border-sm me-1" role="status"></span>
+                }
+                else
+                {
+                    <i class="bi bi-cloud-upload me-1"></i>
+                }
+                Importovat @_allParsed.Count skladeb
+            </button>
+            <button class="btn btn-secondary ms-2" @onclick="Reset" disabled="@_importing">Zrušit</button>
+        </div>
+    </div>
+}
+
+@code {
+    string? _fileName;
+    List<Song> _allParsed = new();
+    List<Song> _preview = new();
+    int _parseErrors;
+    bool _importing;
+    string? _error;
+
+    private static string FormatDuration(int? seconds)
+    {
+        if (seconds is null) return string.Empty;
+        var m = seconds.Value / 60;
+        var s = seconds.Value % 60;
+        return $"{m}:{s:D2}";
+    }
+
+    private async Task DownloadSampleAsync()
+    {
+        var sample = "Název,Rok vydání,Délka (s)\n" +
+                     "Bohemian Rhapsody,1975,354\n" +
+                     "\"Hotel California\",1976,391\n" +
+                     "Stairway to Heaven,1971,482\n";
+        var bytes = System.Text.Encoding.UTF8.GetBytes(sample);
+        await JS.InvokeVoidAsync("downloadBase64File", "vzor_skladby.csv", "text/csv", Convert.ToBase64String(bytes));
+    }
+
+    private async Task OnFileSelectedAsync(InputFileChangeEventArgs e)
+    {
+        Reset();
+        var file = e.File;
+        _fileName = file.Name;
+
+        try
+        {
+            using var stream = file.OpenReadStream(maxAllowedSize: 5 * 1024 * 1024);
+            using var reader = new System.IO.StreamReader(stream, System.Text.Encoding.UTF8);
+            var content = await reader.ReadToEndAsync();
+            ParseCsv(content);
+        }
+        catch (Exception ex)
+        {
+            _error = $"Chyba při čtení souboru: {ex.Message}";
+            Toast.ShowError("Chyba čtení", ex.Message);
+        }
+    }
+
+    private void ParseCsv(string content)
+    {
+        _allParsed = new();
+        _parseErrors = 0;
+
+        var lines = content.Split('\n', StringSplitOptions.RemoveEmptyEntries);
+        // skip header (first line)
+        for (int i = 1; i < lines.Length; i++)
+        {
+            var line = lines[i].TrimEnd('\r');
+            if (string.IsNullOrWhiteSpace(line)) continue;
+
+            var fields = SplitCsvLine(line);
+            if (fields.Count < 1)
+            {
+                _parseErrors++;
+                continue;
+            }
+
+            try
+            {
+                int? releaseYear = null;
+                int? durationSeconds = null;
+
+                if (fields.Count >= 2 && int.TryParse(fields[1], out var yr))
+                    releaseYear = yr;
+                if (fields.Count >= 3 && int.TryParse(fields[2], out var dur))
+                    durationSeconds = dur;
+
+                _allParsed.Add(new Song
+                {
+                    Title = fields[0],
+                    ReleaseYear = releaseYear,
+                    DurationSeconds = durationSeconds,
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow
+                });
+            }
+            catch
+            {
+                _parseErrors++;
+            }
+        }
+
+        _preview = _allParsed.Take(20).ToList();
+    }
+
+    // Minimal quoted-CSV splitter — no external libraries
+    private static List<string> SplitCsvLine(string line)
+    {
+        var fields = new List<string>();
+        var current = new System.Text.StringBuilder();
+        bool inQuotes = false;
+
+        for (int i = 0; i < line.Length; i++)
+        {
+            char c = line[i];
+            if (inQuotes)
+            {
+                if (c == '"')
+                {
+                    if (i + 1 < line.Length && line[i + 1] == '"')
+                    {
+                        current.Append('"');
+                        i++;
+                    }
+                    else
+                    {
+                        inQuotes = false;
+                    }
+                }
+                else
+                {
+                    current.Append(c);
+                }
+            }
+            else
+            {
+                if (c == '"')
+                {
+                    inQuotes = true;
+                }
+                else if (c == ',')
+                {
+                    fields.Add(current.ToString().Trim());
+                    current.Clear();
+                }
+                else
+                {
+                    current.Append(c);
+                }
+            }
+        }
+        fields.Add(current.ToString().Trim());
+        return fields;
+    }
+
+    private async Task ImportAsync()
+    {
+        if (_allParsed.Count == 0) return;
+        _importing = true;
+        _error = null;
+        try
+        {
+            await using var db = await DbFactory.CreateDbContextAsync();
+            db.Songs.AddRange(_allParsed);
+            await db.SaveChangesAsync();
+            Toast.ShowSuccess("Import dokončen", $"Importováno {_allParsed.Count} skladeb.");
+            Reset();
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+            Toast.ShowError("Chyba importu", ex.Message);
+        }
+        finally
+        {
+            _importing = false;
+        }
+    }
+
+    private void Reset()
+    {
+        _fileName = null;
+        _allParsed = new();
+        _preview = new();
+        _parseErrors = 0;
+        _error = null;
+    }
+}

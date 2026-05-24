@@ -1,7 +1,122 @@
 @page "/"
+@rendermode InteractiveServer
+
+@using Microsoft.EntityFrameworkCore
+@using SharedServices.Models.AiData
 @inject IDbContextFactory<AppDbContextAiData> DbFactory
 
 <PageTitle>VO2 Data Manager</PageTitle>
 
 <h3><i class="bi bi-database-fill me-2"></i>VO2 Data Manager</h3>
 <p class="text-muted">Připojeno k databázi <strong>AIData</strong>.</p>
+
+@if (_loading)
+{
+    <PageLoadingSpinner />
+}
+else
+{
+    <div class="row g-3 mb-4">
+        <div class="col-sm-4">
+            <a href="/artists" class="text-decoration-none">
+                <div class="card h-100 border-0 shadow-sm">
+                    <div class="card-body d-flex align-items-center gap-3">
+                        <div class="fs-1 text-primary"><i class="bi bi-music-note-beamed"></i></div>
+                        <div>
+                            <div class="fs-2 fw-bold">@_artistCount</div>
+                            <div class="text-muted small">Interpreti</div>
+                        </div>
+                    </div>
+                </div>
+            </a>
+        </div>
+        <div class="col-sm-4">
+            <a href="/albums" class="text-decoration-none">
+                <div class="card h-100 border-0 shadow-sm">
+                    <div class="card-body d-flex align-items-center gap-3">
+                        <div class="fs-1 text-success"><i class="bi bi-vinyl"></i></div>
+                        <div>
+                            <div class="fs-2 fw-bold">@_albumCount</div>
+                            <div class="text-muted small">Alba</div>
+                        </div>
+                    </div>
+                </div>
+            </a>
+        </div>
+        <div class="col-sm-4">
+            <a href="/songs" class="text-decoration-none">
+                <div class="card h-100 border-0 shadow-sm">
+                    <div class="card-body d-flex align-items-center gap-3">
+                        <div class="fs-1 text-warning"><i class="bi bi-music-note"></i></div>
+                        <div>
+                            <div class="fs-2 fw-bold">@_songCount</div>
+                            <div class="text-muted small">Skladby</div>
+                        </div>
+                    </div>
+                </div>
+            </a>
+        </div>
+    </div>
+
+    @if (_total > 0)
+    {
+        <div class="row justify-content-center">
+            <div class="col-md-5">
+                <div class="card border-0 shadow-sm">
+                    <div class="card-header bg-transparent fw-semibold">
+                        <i class="bi bi-pie-chart me-2"></i>Poměr obsahu
+                    </div>
+                    <div class="card-body">
+                        <ApexChart TItem="ChartItem" Options="_chartOptions">
+                            <ApexPointSeries TItem="ChartItem"
+                                             Items="_chartData"
+                                             SeriesType="SeriesType.Donut"
+                                             XValue="@(e => e.Label)"
+                                             YValue="@(e => e.Value)" />
+                        </ApexChart>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+}
+
+@code {
+    private bool _loading = true;
+    private int _artistCount;
+    private int _albumCount;
+    private int _songCount;
+    private int _total;
+
+    private List<ChartItem> _chartData = new();
+    private ApexChartOptions<ChartItem> _chartOptions = new();
+
+    private class ChartItem
+    {
+        public string Label { get; set; } = string.Empty;
+        public decimal Value { get; set; }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await using var db = await DbFactory.CreateDbContextAsync();
+        _artistCount = await db.Artists.CountAsync();
+        _albumCount = await db.Albums.CountAsync();
+        _songCount = await db.Songs.CountAsync();
+        _total = _artistCount + _albumCount + _songCount;
+
+        _chartData = new List<ChartItem>
+        {
+            new() { Label = "Interpreti", Value = _artistCount },
+            new() { Label = "Alba",       Value = _albumCount  },
+            new() { Label = "Skladby",    Value = _songCount   },
+        };
+
+        _chartOptions = new ApexChartOptions<ChartItem>
+        {
+            Legend = new Legend { Position = LegendPosition.Bottom },
+        };
+
+        _loading = false;
+    }
+}

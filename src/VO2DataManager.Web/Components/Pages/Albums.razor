@@ -6,14 +6,20 @@
 @using SharedServices.Models.AiData
 @inject IDbContextFactory<AppDbContextAiData> DbFactory
 @inject ToastService Toast
+@inject IJSRuntime JS
 
 <PageTitle>Alba — VO2 Data Manager</PageTitle>
 
 <div class="d-flex justify-content-between align-items-center mb-3">
     <h4 class="m-0"><i class="bi bi-vinyl me-2"></i>Alba</h4>
-    <button class="btn btn-primary btn-sm" @onclick="ShowAddForm">
-        <i class="bi bi-plus-lg me-1"></i>Přidat
-    </button>
+    <div class="d-flex gap-2">
+        <button class="btn btn-outline-success btn-sm" @onclick="ExportCsvAsync">
+            <i class="bi bi-download me-1"></i>Export CSV
+        </button>
+        <button class="btn btn-primary btn-sm" @onclick="ShowAddForm">
+            <i class="bi bi-plus-lg me-1"></i>Přidat
+        </button>
+    </div>
 </div>
 
 @if (!string.IsNullOrEmpty(_error))
@@ -290,5 +296,17 @@ else
     {
         _page = 1;
         await LoadAsync();
+    }
+
+    private async Task ExportCsvAsync()
+    {
+        await using var db = await DbFactory.CreateDbContextAsync();
+        var all = await db.Albums.OrderBy(a => a.ArtistDisplay).ThenBy(a => a.ReleaseYear).ToListAsync();
+        var sb = new System.Text.StringBuilder();
+        sb.AppendLine("Název,Interpret,Rok vydání,Skóre,Label");
+        foreach (var a in all)
+            sb.AppendLine($"\"{a.Title?.Replace("\"", "\"\"")}\",\"{a.ArtistDisplay?.Replace("\"", "\"\"")}\",{a.ReleaseYear},{a.ConfidenceScore},\"{a.Label?.Replace("\"", "\"\"")}\"");
+        var bytes = System.Text.Encoding.UTF8.GetBytes(sb.ToString());
+        await JS.InvokeVoidAsync("downloadBase64File", "alba.csv", "text/csv", Convert.ToBase64String(bytes));
     }
 }
