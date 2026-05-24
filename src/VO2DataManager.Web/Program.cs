@@ -14,6 +14,7 @@ using Serilog.Sinks.PostgreSQL.ColumnWriters;
 using SharedServices;
 using SharedServices.Services;
 using Services;
+using VO2DataManager.Web.Achievements;
 using Blazored.LocalStorage;
 using Blazored.Modal;
 using Blazored.SessionStorage;
@@ -98,6 +99,13 @@ builder.Services.AddHttpContextAccessor();
 builder.Services.AddCors();
 builder.Services.AddHealthChecks();
 builder.Services.AddScoped<ToastService>();
+builder.Services.AddScoped<AchievementService>(sp =>
+    new AchievementService(
+        sp.GetRequiredService<ToastService>(),
+        sp.GetRequiredService<IWebHostEnvironment>())
+    {
+        Definitions = VO2Achievements.All
+    });
 builder.Services.AddScoped<AlertService>();
 builder.Services.AddBlazoredModal();
 builder.Services.AddBlazoredLocalStorage();
