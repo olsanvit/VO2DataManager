@@ -20,6 +20,8 @@ using Blazored.Modal;
 using Blazored.SessionStorage;
 using VO2DataManager.Services;
 using ApexCharts;
+using MudBlazor.Services;
+using Radzen;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -98,6 +100,9 @@ builder.Services.AddMabAuth<AppDbContextAiDataIdentity>(builder.Configuration);
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddCors();
 builder.Services.AddHealthChecks();
+builder.Services.AddMudServices();
+builder.Services.AddRadzenComponents();
+builder.Services.AddScoped<UiLibraryService>();
 builder.Services.AddScoped<ToastService>();
 builder.Services.AddScoped<AchievementService>(sp =>
     new AchievementService(
@@ -113,7 +118,7 @@ builder.Services.AddBlazoredSessionStorage();
 builder.Services.AddApexCharts();
 builder.Services.AddScoped<ErrorService<AppDbContextAiData>>();
 builder.Services.AddScoped<EfCoreService<AppDbContextAiData>>();
-builder.Services.AddSingleton<ThemeService>(_ => new ThemeService(builder.Configuration));
+builder.Services.AddSingleton<SharedServices.Services.ThemeService>(_ => new SharedServices.Services.ThemeService(builder.Configuration));
 builder.Services.AddScoped<AiDataSyncService>();
 builder.Services.AddDistributedMemoryCache();
 builder.Services.AddSession(options =>
