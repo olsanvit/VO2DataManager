@@ -8,8 +8,8 @@
 
 <PageTitle>Americký fotbal — VO2 Data Manager</PageTitle>
 
-<div class="d-flex justify-content-between align-items-center mb-3">
-    <h4 class="m-0"><i class="bi bi-trophy me-2"></i>Americký fotbal</h4>
+<div class="ui-page-header ui-anim-fade-up">
+    <h3><i class="bi bi-trophy me-2"></i>Americký fotbal</h3>
 </div>
 
 @if (_loading)
@@ -18,83 +18,122 @@
 }
 else
 {
-    <ul class="nav nav-tabs mb-3">
-        <li class="nav-item">
-            <button class="nav-link @(_tab == 0 ? "active" : "")" @onclick='() => SetTab(0)'>Týmy</button>
-        </li>
-        <li class="nav-item">
-            <button class="nav-link @(_tab == 1 ? "active" : "")" @onclick='() => SetTab(1)'>Ligy</button>
-        </li>
-        <li class="nav-item">
-            <button class="nav-link @(_tab == 2 ? "active" : "")" @onclick='() => SetTab(2)'>Sezóny</button>
-        </li>
-    </ul>
+    <!-- Tabs -->
+    <div class="d-flex gap-2 mb-3 ui-anim-fade-up">
+        <button class="btn btn-sm @(_tab == 0 ? "btn-primary" : "btn-outline-secondary")" @onclick='() => SetTab(0)'>
+            <i class="bi bi-people me-1"></i>Týmy
+        </button>
+        <button class="btn btn-sm @(_tab == 1 ? "btn-primary" : "btn-outline-secondary")" @onclick='() => SetTab(1)'>
+            <i class="bi bi-diagram-3 me-1"></i>Ligy
+        </button>
+        <button class="btn btn-sm @(_tab == 2 ? "btn-primary" : "btn-outline-secondary")" @onclick='() => SetTab(2)'>
+            <i class="bi bi-calendar3 me-1"></i>Sezóny
+        </button>
+    </div>
 
     @if (_tab == 0)
     {
-        <div class="row g-2 mb-3">
-            <div class="col-md-4">
-                <input class="form-control form-control-sm" placeholder="Hledat tým…"
-                       @bind="_search" @bind:event="oninput" />
+        <div class="ui-panel ui-anim-fade-up">
+            <div class="ui-panel-header">
+                <span class="ui-panel-title">
+                    <i class="bi bi-people text-accent"></i>
+                    Týmy
+                </span>
+                <span class="badge bg-secondary">@FilteredTeams.Count()</span>
             </div>
-            <div class="col-auto"><span class="badge bg-secondary">@FilteredTeams.Count() týmů</span></div>
-        </div>
-        <div class="table-responsive">
-            <table class="table table-sm table-hover">
-                <thead class="table-secondary">
-                    <tr><th>Název</th><th>Norm. název</th><th>Zdroj</th></tr>
-                </thead>
-                <tbody>
-                    @foreach (var t in FilteredTeams.Take(100))
-                    {
+            <div class="px-3 pt-3">
+                <UiSearchBar @bind-Value="_search"
+                             Placeholder="Hledat tým…"
+                             Count="@FilteredTeams.Count()"
+                             CountLabel="týmů" />
+            </div>
+            <div class="table-responsive">
+                <table class="table table-hover table-sm align-middle mb-0">
+                    <thead>
                         <tr>
-                            <td class="fw-semibold">@t.Name</td>
-                            <td class="text-muted small">@t.NormalizedName</td>
-                            <td class="text-muted small">@t.ExternalSource</td>
+                            <th>Název</th>
+                            <th>Norm. název</th>
+                            <th>Zdroj</th>
                         </tr>
-                    }
-                </tbody>
-            </table>
+                    </thead>
+                    <tbody>
+                        @foreach (var t in FilteredTeams.Take(100))
+                        {
+                            <tr>
+                                <td class="fw-semibold">@t.Name</td>
+                                <td class="text-muted small">@t.NormalizedName</td>
+                                <td class="text-muted small">@t.ExternalSource</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
         </div>
     }
     else if (_tab == 1)
     {
-        <div class="table-responsive">
-            <table class="table table-sm table-hover">
-                <thead class="table-secondary">
-                    <tr><th>Název</th><th>Norm. název</th><th>Zdroj</th></tr>
-                </thead>
-                <tbody>
-                    @foreach (var l in _leagues)
-                    {
+        <div class="ui-panel ui-anim-fade-up">
+            <div class="ui-panel-header">
+                <span class="ui-panel-title">
+                    <i class="bi bi-diagram-3 text-accent"></i>
+                    Ligy
+                </span>
+                <span class="badge bg-secondary">@_leagues.Count</span>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-hover table-sm align-middle mb-0">
+                    <thead>
                         <tr>
-                            <td class="fw-semibold">@l.Name</td>
-                            <td class="text-muted small">@l.NormalizedName</td>
-                            <td class="text-muted small">@l.ExternalSource</td>
+                            <th>Název</th>
+                            <th>Norm. název</th>
+                            <th>Zdroj</th>
                         </tr>
-                    }
-                </tbody>
-            </table>
+                    </thead>
+                    <tbody>
+                        @foreach (var l in _leagues)
+                        {
+                            <tr>
+                                <td class="fw-semibold">@l.Name</td>
+                                <td class="text-muted small">@l.NormalizedName</td>
+                                <td class="text-muted small">@l.ExternalSource</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
         </div>
     }
     else
     {
-        <div class="table-responsive">
-            <table class="table table-sm table-hover">
-                <thead class="table-secondary">
-                    <tr><th>Název</th><th>Norm. název</th><th>Zdroj</th></tr>
-                </thead>
-                <tbody>
-                    @foreach (var s in _seasons)
-                    {
+        <div class="ui-panel ui-anim-fade-up">
+            <div class="ui-panel-header">
+                <span class="ui-panel-title">
+                    <i class="bi bi-calendar3 text-accent"></i>
+                    Sezóny
+                </span>
+                <span class="badge bg-secondary">@_seasons.Count</span>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-hover table-sm align-middle mb-0">
+                    <thead>
                         <tr>
-                            <td class="fw-semibold">@s.Name</td>
-                            <td class="text-muted small">@s.NormalizedName</td>
-                            <td class="text-muted small">@s.ExternalSource</td>
+                            <th>Název</th>
+                            <th>Norm. název</th>
+                            <th>Zdroj</th>
                         </tr>
-                    }
-                </tbody>
-            </table>
+                    </thead>
+                    <tbody>
+                        @foreach (var s in _seasons)
+                        {
+                            <tr>
+                                <td class="fw-semibold">@s.Name</td>
+                                <td class="text-muted small">@s.NormalizedName</td>
+                                <td class="text-muted small">@s.ExternalSource</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
         </div>
     }
 }
