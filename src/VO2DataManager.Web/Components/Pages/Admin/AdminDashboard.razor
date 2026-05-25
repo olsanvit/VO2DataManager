@@ -12,8 +12,8 @@
 
 <PageTitle>Admin — VO2DataManager</PageTitle>
 
-<div class="dash-switcher mb-3">
-    <h4 class="m-0">Admin — VO2DataManager</h4>
+<div class="ui-page-header ui-anim-fade-up">
+    <h4 class="m-0"><i class="bi bi-shield-lock me-2 text-accent"></i>Admin — VO2DataManager</h4>
 </div>
 
 @if (_loading)
@@ -23,53 +23,41 @@
 else
 {
     <!-- Statistiky -->
-    <div class="row g-3 mb-3">
+    <div class="row g-3 mb-3 ui-anim-fade-up">
         <div class="col-6 col-md-2">
-            <div class="card text-center">
-                <div class="card-body py-2">
-                    <div class="fs-4 fw-bold text-primary">@_userCount</div>
-                    <div class="text-muted small">Uživatelé</div>
-                </div>
+            <div class="ui-panel text-center p-3">
+                <div class="fs-3 fw-bold text-accent">@_userCount</div>
+                <div class="text-muted small">Uživatelé</div>
             </div>
         </div>
         <div class="col-6 col-md-2">
-            <div class="card text-center">
-                <div class="card-body py-2">
-                    <div class="fs-4 fw-bold text-info">@_artistCount</div>
-                    <div class="text-muted small">Interpreti</div>
-                </div>
+            <div class="ui-panel text-center p-3">
+                <div class="fs-3 fw-bold text-accent">@_artistCount</div>
+                <div class="text-muted small">Interpreti</div>
             </div>
         </div>
         <div class="col-6 col-md-2">
-            <div class="card text-center">
-                <div class="card-body py-2">
-                    <div class="fs-4 fw-bold text-success">@_albumCount</div>
-                    <div class="text-muted small">Alba</div>
-                </div>
+            <div class="ui-panel text-center p-3">
+                <div class="fs-3 fw-bold text-accent">@_albumCount</div>
+                <div class="text-muted small">Alba</div>
             </div>
         </div>
         <div class="col-6 col-md-2">
-            <div class="card text-center">
-                <div class="card-body py-2">
-                    <div class="fs-4 fw-bold text-warning">@_songCount</div>
-                    <div class="text-muted small">Skladby</div>
-                </div>
+            <div class="ui-panel text-center p-3">
+                <div class="fs-3 fw-bold text-accent">@_songCount</div>
+                <div class="text-muted small">Skladby</div>
             </div>
         </div>
         <div class="col-6 col-md-2">
-            <div class="card text-center">
-                <div class="card-body py-2">
-                    <div class="fs-4 fw-bold text-danger">@_amFootballLeagueCount</div>
-                    <div class="text-muted small">Am.Football ligy</div>
-                </div>
+            <div class="ui-panel text-center p-3">
+                <div class="fs-3 fw-bold text-accent">@_amFootballLeagueCount</div>
+                <div class="text-muted small">Am.Football ligy</div>
             </div>
         </div>
         <div class="col-6 col-md-2">
-            <div class="card text-center">
-                <div class="card-body py-2">
-                    <div class="fs-4 fw-bold text-secondary">@_baseballLeagueCount</div>
-                    <div class="text-muted small">Baseball ligy</div>
-                </div>
+            <div class="ui-panel text-center p-3">
+                <div class="fs-3 fw-bold text-accent">@_baseballLeagueCount</div>
+                <div class="text-muted small">Baseball ligy</div>
             </div>
         </div>
     </div>
@@ -77,11 +65,15 @@ else
     <div class="row g-3">
         <!-- Uživatelé -->
         <div class="col-md-4">
-            <div class="card h-100">
-                <div class="card-header fw-bold">Uživatelé (@_userCount)</div>
-                <div class="card-body p-0">
-                    <table class="table table-sm table-hover mb-0">
-                        <thead class="table-secondary">
+            <div class="ui-panel h-100 ui-anim-fade-up">
+                <div class="ui-panel-header">
+                    <span class="ui-panel-title">
+                        <i class="bi bi-people text-accent"></i>Uživatelé (@_userCount)
+                    </span>
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-sm table-hover align-middle mb-0">
+                        <thead>
                             <tr><th>Email</th><th>Role</th></tr>
                         </thead>
                         <tbody>
@@ -105,38 +97,56 @@ else
 
         <!-- Top interpreti -->
         <div class="col-md-8">
-            <div class="card h-100">
-                <div class="card-header fw-bold">Top 20 interpretů (dle abecedy)</div>
-                <div class="card-body p-0">
-                    <div class="table-responsive">
-                        <table class="table table-sm table-hover mb-0">
-                            <thead class="table-secondary">
-                                <tr><th>Interpret</th></tr>
-                            </thead>
-                            <tbody>
-                                @foreach (var a in _recentArtists)
-                                {
-                                    <tr>
-                                        <td class="small">@a.Name</td>
-                                    </tr>
-                                }
-                            </tbody>
-                        </table>
-                    </div>
+            <div class="ui-panel h-100 ui-anim-fade-up">
+                <div class="ui-panel-header">
+                    <span class="ui-panel-title">
+                        <i class="bi bi-music-note-list text-accent"></i>Top 20 interpretů (dle abecedy)
+                    </span>
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-sm table-hover align-middle mb-0">
+                        <thead>
+                            <tr><th>Interpret</th></tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var a in _recentArtists)
+                            {
+                                <tr>
+                                    <td class="small">@a.Name</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Databázový přehled -->
-    <div class="card mt-3">
-        <div class="card-header fw-bold">Přehled AI dat</div>
-        <div class="card-body">
+    <!-- Přehled AI dat -->
+    <div class="ui-panel ui-anim-fade-up mt-3">
+        <div class="ui-panel-header">
+            <span class="ui-panel-title">
+                <i class="bi bi-database text-accent"></i>Přehled AI dat
+            </span>
+        </div>
+        <div class="p-3">
             <div class="row g-2 text-center">
-                <div class="col-6 col-md-3"><strong>@_artistCount</strong> <span class="text-muted small">Interpreti</span></div>
-                <div class="col-6 col-md-3"><strong>@_albumCount</strong> <span class="text-muted small">Alba</span></div>
-                <div class="col-6 col-md-3"><strong>@_songCount</strong> <span class="text-muted small">Skladby</span></div>
-                <div class="col-6 col-md-3"><strong>@_amFootballLeagueCount</strong> <span class="text-muted small">Am.Football ligy</span></div>
+                <div class="col-6 col-md-3">
+                    <div class="fs-5 fw-bold text-accent">@_artistCount</div>
+                    <div class="text-muted small">Interpreti</div>
+                </div>
+                <div class="col-6 col-md-3">
+                    <div class="fs-5 fw-bold text-accent">@_albumCount</div>
+                    <div class="text-muted small">Alba</div>
+                </div>
+                <div class="col-6 col-md-3">
+                    <div class="fs-5 fw-bold text-accent">@_songCount</div>
+                    <div class="text-muted small">Skladby</div>
+                </div>
+                <div class="col-6 col-md-3">
+                    <div class="fs-5 fw-bold text-accent">@_amFootballLeagueCount</div>
+                    <div class="text-muted small">Am.Football ligy</div>
+                </div>
             </div>
         </div>
     </div>
