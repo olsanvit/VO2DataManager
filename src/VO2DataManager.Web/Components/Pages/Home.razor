@@ -5,80 +5,92 @@
 @using SharedServices.Models.AiData
 @inject IDbContextFactory<AppDbContextAiData> DbFactory
 
-<PageTitle>VO2 Data Manager</PageTitle>
-
-<h3><i class="bi bi-database-fill me-2"></i>VO2 Data Manager</h3>
-<p class="text-muted">Připojeno k databázi <strong>AIData</strong>.</p>
+<PageTitle>VO2 Data Manager — Dashboard</PageTitle>
 
 @if (_loading)
 {
-    <PageLoadingSpinner />
+    <div class="ui-anim-fade-up d-flex align-items-center gap-2 mt-4">
+        <div class="spinner-border spinner-border-sm text-primary" role="status"></div>
+        <span class="text-muted">Načítám data…</span>
+    </div>
 }
 else
 {
-    <div class="row g-3 mb-4">
-        <div class="col-sm-4">
-            <a href="/artists" class="text-decoration-none">
-                <div class="card h-100 border-0 shadow-sm">
-                    <div class="card-body d-flex align-items-center gap-3">
-                        <div class="fs-1 text-primary"><i class="bi bi-music-note-beamed"></i></div>
-                        <div>
-                            <div class="fs-2 fw-bold">@_artistCount</div>
-                            <div class="text-muted small">Interpreti</div>
-                        </div>
-                    </div>
-                </div>
-            </a>
+    <!-- Page header -->
+    <div class="ui-page-header ui-anim-fade-up">
+        <h3>
+            <i class="bi bi-database-fill"></i>
+            Dashboard
+        </h3>
+        <span class="badge bg-secondary text-muted small">VO2 Data Manager</span>
+    </div>
+
+    <!-- Stats row -->
+    <div class="row g-3 mb-4 ui-anim-fade-up">
+        <div class="col-6 col-lg-4">
+            <UiStats Label="Interpreti"
+                     Value="@_artistCount.ToString("N0")"
+                     Icon="bi-music-note-beamed"
+                     IconBgClass="icon-accent" />
         </div>
-        <div class="col-sm-4">
-            <a href="/albums" class="text-decoration-none">
-                <div class="card h-100 border-0 shadow-sm">
-                    <div class="card-body d-flex align-items-center gap-3">
-                        <div class="fs-1 text-success"><i class="bi bi-vinyl"></i></div>
-                        <div>
-                            <div class="fs-2 fw-bold">@_albumCount</div>
-                            <div class="text-muted small">Alba</div>
-                        </div>
-                    </div>
-                </div>
-            </a>
+        <div class="col-6 col-lg-4">
+            <UiStats Label="Alba"
+                     Value="@_albumCount.ToString("N0")"
+                     Icon="bi-vinyl"
+                     IconBgClass="icon-emerald" />
         </div>
-        <div class="col-sm-4">
-            <a href="/songs" class="text-decoration-none">
-                <div class="card h-100 border-0 shadow-sm">
-                    <div class="card-body d-flex align-items-center gap-3">
-                        <div class="fs-1 text-warning"><i class="bi bi-music-note"></i></div>
-                        <div>
-                            <div class="fs-2 fw-bold">@_songCount</div>
-                            <div class="text-muted small">Skladby</div>
-                        </div>
-                    </div>
-                </div>
-            </a>
+        <div class="col-6 col-lg-4">
+            <UiStats Label="Skladby"
+                     Value="@_songCount.ToString("N0")"
+                     Icon="bi-music-note"
+                     IconBgClass="icon-amber" />
         </div>
     </div>
 
-    @if (_total > 0)
-    {
-        <div class="row justify-content-center">
-            <div class="col-md-5">
-                <div class="card border-0 shadow-sm">
-                    <div class="card-header bg-transparent fw-semibold">
-                        <i class="bi bi-pie-chart me-2"></i>Poměr obsahu
+    <!-- Donut chart + quick links -->
+    <div class="row g-3 mb-4">
+        @if (_total > 0)
+        {
+            <div class="col-lg-5">
+                <div class="ui-panel ui-anim-fade-up">
+                    <div class="ui-panel-header">
+                        <span class="ui-panel-title">
+                            <i class="bi bi-pie-chart-fill text-accent"></i>
+                            Poměr obsahu
+                        </span>
                     </div>
-                    <div class="card-body">
-                        <ApexChart TItem="ChartItem" Options="_chartOptions">
-                            <ApexPointSeries TItem="ChartItem"
-                                             Items="_chartData"
-                                             SeriesType="ApexCharts.SeriesType.Donut"
-                                             XValue="@(e => e.Label)"
-                                             YValue="@(e => e.Value)" />
-                        </ApexChart>
-                    </div>
+                    <ApexChart TItem="ChartItem" Options="_chartOptions">
+                        <ApexPointSeries TItem="ChartItem"
+                                         Items="_chartData"
+                                         SeriesType="ApexCharts.SeriesType.Donut"
+                                         XValue="@(e => e.Label)"
+                                         YValue="@(e => e.Value)" />
+                    </ApexChart>
                 </div>
             </div>
+        }
+
+        <!-- Quick links -->
+        <div class="col-lg-7">
+            <div class="d-flex flex-column gap-3 ui-anim-fade-up">
+                <QuickLinkCard Href="/artists"
+                               Icon="bi-music-note-beamed"
+                               Title="Interpreti"
+                               Description="Správa interpretů a umělců"
+                               IconClass="icon-accent" />
+                <QuickLinkCard Href="/albums"
+                               Icon="bi-vinyl"
+                               Title="Alba"
+                               Description="Správa hudebních alb"
+                               IconClass="icon-emerald" />
+                <QuickLinkCard Href="/songs"
+                               Icon="bi-music-note"
+                               Title="Skladby"
+                               Description="Správa skladeb a stop"
+                               IconClass="icon-amber" />
+            </div>
         </div>
-    }
+    </div>
 }
 
 @code {
@@ -89,7 +101,14 @@ else
     private int _total;
 
     private List<ChartItem> _chartData = new();
-    private ApexChartOptions<ChartItem> _chartOptions = new();
+
+    private readonly ApexChartOptions<ChartItem> _chartOptions = new()
+    {
+        Legend   = new Legend { Position = LegendPosition.Bottom },
+        Chart    = new Chart  { Background = "transparent" },
+        Theme    = new ApexCharts.Theme { Mode = Mode.Dark },
+        Colors   = ["#6366f1", "#10b981", "#f59e0b"]
+    };
 
     private class ChartItem
     {
@@ -101,8 +120,8 @@ else
     {
         await using var db = await DbFactory.CreateDbContextAsync();
         _artistCount = await db.Artists.CountAsync();
-        _albumCount = await db.Albums.CountAsync();
-        _songCount = await db.Songs.CountAsync();
+        _albumCount  = await db.Albums.CountAsync();
+        _songCount   = await db.Songs.CountAsync();
         _total = _artistCount + _albumCount + _songCount;
 
         _chartData = new List<ChartItem>
@@ -110,11 +129,6 @@ else
             new() { Label = "Interpreti", Value = _artistCount },
             new() { Label = "Alba",       Value = _albumCount  },
             new() { Label = "Skladby",    Value = _songCount   },
-        };
-
-        _chartOptions = new ApexChartOptions<ChartItem>
-        {
-            Legend = new Legend { Position = LegendPosition.Bottom },
         };
 
         _loading = false;
