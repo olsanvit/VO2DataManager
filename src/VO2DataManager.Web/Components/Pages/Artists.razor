@@ -10,68 +10,70 @@
 
 <PageTitle>Interpreti — VO2 Data Manager</PageTitle>
 
-<div class="d-flex justify-content-between align-items-center mb-3">
-    <h4 class="m-0"><i class="bi bi-music-note-beamed me-2"></i>Interpreti</h4>
+<div class="ui-page-header ui-anim-fade-up">
+    <h3><i class="bi bi-music-note-beamed"></i> Interpreti</h3>
     <div class="d-flex gap-2">
-        <button class="btn btn-outline-success btn-sm" @onclick="ExportCsvAsync">
+        <button class="btn btn-sm btn-outline-success" @onclick="ExportCsvAsync">
             <i class="bi bi-download me-1"></i>Export CSV
         </button>
-        <button class="btn btn-primary btn-sm" @onclick="ShowAddForm">
+        <button class="btn btn-sm btn-primary" @onclick="ShowAddForm">
             <i class="bi bi-plus-lg me-1"></i>Přidat
         </button>
     </div>
 </div>
 
-@if (!string.IsNullOrEmpty(_error))
-{
-    <div class="alert alert-danger alert-dismissible" role="alert">
-        @_error
-        <button type="button" class="btn-close" @onclick="() => _error = null"></button>
-    </div>
-}
+<ConfirmDialog @ref="_confirmDialog" />
 
+<!-- Add / Edit form -->
 @if (_showForm)
 {
-    <div class="card mb-3">
-        <div class="card-header">
-            <strong>@(_editId.HasValue ? "Upravit interpreta" : "Nový interpret")</strong>
+    <div class="ui-panel ui-anim-fade-up">
+        <div class="ui-panel-header">
+            <span class="ui-panel-title">
+                <i class="bi bi-@(_editId.HasValue ? "pencil" : "plus-circle") text-accent"></i>
+                @(_editId.HasValue ? "Upravit interpreta" : "Nový interpret")
+            </span>
+            <button class="btn btn-sm btn-outline-secondary" @onclick="HideForm">Zrušit</button>
         </div>
-        <div class="card-body">
-            <div class="row g-2">
+        <div class="p-3">
+            <div class="row g-3">
                 <div class="col-md-4">
-                    <label class="form-label small">Název</label>
+                    <label class="form-label small text-muted">Název</label>
                     <input class="form-control form-control-sm" @bind="_form.Name" placeholder="Název interpreta" />
                 </div>
                 <div class="col-md-4">
-                    <label class="form-label small">Sort Name</label>
+                    <label class="form-label small text-muted">Sort Name</label>
                     <input class="form-control form-control-sm" @bind="_form.SortName" placeholder="Sort name" />
                 </div>
                 <div class="col-md-2">
-                    <label class="form-label small">Aktivní od</label>
+                    <label class="form-label small text-muted">Aktivní od</label>
                     <input type="number" class="form-control form-control-sm" @bind="_form.ActiveFromYear" placeholder="Rok" />
                 </div>
                 <div class="col-md-2">
-                    <label class="form-label small">Aktivní do</label>
+                    <label class="form-label small text-muted">Aktivní do</label>
                     <input type="number" class="form-control form-control-sm" @bind="_form.ActiveToYear" placeholder="Rok" />
                 </div>
                 <div class="col-md-2">
-                    <label class="form-label small">Skóre</label>
+                    <label class="form-label small text-muted">Skóre</label>
                     <input type="number" class="form-control form-control-sm" @bind="_form.ConfidenceScore" placeholder="Skóre" />
                 </div>
-                <div class="col-md-4">
-                    <label class="form-label small">Webová stránka</label>
-                    <input class="form-control form-control-sm" @bind="_form.OfficialWebsiteUrl" placeholder="https://..." />
+                <div class="col-md-6">
+                    <label class="form-label small text-muted">Webová stránka</label>
+                    <input class="form-control form-control-sm" @bind="_form.OfficialWebsiteUrl" placeholder="https://…" />
                 </div>
                 <div class="col-md-4">
-                    <label class="form-label small">GuidId</label>
+                    <label class="form-label small text-muted">GuidId</label>
                     <input class="form-control form-control-sm" @bind="_form.GuidId" placeholder="GUID" />
                 </div>
             </div>
-            <div class="mt-3 d-flex gap-2">
+            @if (!string.IsNullOrEmpty(_error))
+            {
+                <div class="mt-2 text-danger small"><i class="bi bi-exclamation-triangle me-1"></i>@_error</div>
+            }
+            <div class="mt-3">
                 <button class="btn btn-success btn-sm" @onclick="SaveAsync">
                     <i class="bi bi-check-lg me-1"></i>Uložit
                 </button>
-                <button class="btn btn-secondary btn-sm" @onclick="HideForm">Zrušit</button>
             </div>
         </div>
     </div>
@@ -79,76 +81,77 @@
 
 @if (_loading)
 {
-    <PageLoadingSpinner />
+    <div class="ui-anim-fade-up d-flex align-items-center gap-2 mt-3">
+        <div class="spinner-border spinner-border-sm text-primary" role="status"></div>
+        <span class="text-muted">Načítám interprety…</span>
+    </div>
 }
 else
 {
-    <div class="row g-2 mb-3">
-        <div class="col-md-4">
-            <input class="form-control form-control-sm" placeholder="Hledat interpreta…"
-                   @bind="_search" @bind:event="oninput" @bind:after="OnSearchChanged" />
-        </div>
-        <div class="col-auto">
-            <span class="badge bg-secondary">@_total interpretů</span>
-        </div>
-    </div>
+    <UiSearchBar @bind-Value="_search" Placeholder="Hledat interpreta…"
+                 Count="_total" CountLabel="interpretů"
+                 OnSearch="ResetAndLoad" />
 
-    <div class="table-responsive">
-        <table class="table table-sm table-hover">
-            <thead class="table-secondary">
-                <tr>
-                    <th>Název</th>
-                    <th>Sort Name</th>
-                    <th>Aktivní od</th>
-                    <th>Aktivní do</th>
-                    <th>Skóre</th>
-                    <th>Web</th>
-                    <th style="width:90px"></th>
-                </tr>
-            </thead>
-            <tbody>
-                @foreach (var a in _artists)
-                {
+    <div class="ui-panel ui-anim-fade-up">
+        <div class="ui-panel-header">
+            <span class="ui-panel-title">
+                <i class="bi bi-music-note-beamed text-accent"></i>
+                Databáze interpretů
+            </span>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead>
                     <tr>
-                        <td class="fw-semibold">@a.Name</td>
-                        <td class="text-muted small">@a.SortName</td>
-                        <td class="text-muted small">@a.ActiveFromYear</td>
-                        <td class="text-muted small">@a.ActiveToYear</td>
-                        <td class="text-muted small">@a.ConfidenceScore</td>
-                        <td class="text-muted small">
-                            @if (!string.IsNullOrEmpty(a.OfficialWebsiteUrl))
-                            {
-                                <a href="@a.OfficialWebsiteUrl" target="_blank" rel="noopener noreferrer">
-                                    <i class="bi bi-box-arrow-up-right"></i>
-                                </a>
-                            }
-                        </td>
-                        <td>
-                            <button class="btn btn-outline-secondary btn-sm me-1" title="Upravit"
-                                    @onclick="() => ShowEditForm(a)">
-                                <i class="bi bi-pencil"></i>
-                            </button>
-                            <button class="btn btn-danger btn-sm" title="Smazat"
-                                    @onclick="() => ConfirmDelete(a.Id)">
-                                <i class="bi bi-trash"></i>
-                            </button>
-                        </td>
+                        <th>Název</th>
+                        <th>Sort Name</th>
+                        <th class="text-center">Od</th>
+                        <th class="text-center">Do</th>
+                        <th class="text-center">Skóre</th>
+                        <th class="text-center">Web</th>
+                        <th></th>
                     </tr>
-                }
-            </tbody>
-        </table>
+                </thead>
+                <tbody>
+                    @if (!_artists.Any())
+                    {
+                        <tr><td colspan="7" class="text-muted text-center py-4">Žádné záznamy.</td></tr>
+                    }
+                    @foreach (var a in _artists)
+                    {
+                        <tr>
+                            <td class="fw-semibold">@a.Name</td>
+                            <td class="text-muted small">@a.SortName</td>
+                            <td class="text-center text-muted small">@a.ActiveFromYear</td>
+                            <td class="text-center text-muted small">@a.ActiveToYear</td>
+                            <td class="text-center"><span class="badge bg-secondary">@a.ConfidenceScore</span></td>
+                            <td class="text-center">
+                                @if (!string.IsNullOrEmpty(a.OfficialWebsiteUrl))
+                                {
+                                    <a href="@a.OfficialWebsiteUrl" target="_blank" rel="noopener noreferrer" class="text-accent">
+                                        <i class="bi bi-box-arrow-up-right"></i>
+                                    </a>
+                                }
+                            </td>
+                            <td class="text-end">
+                                <button class="btn btn-outline-secondary btn-sm me-1" @onclick="() => ShowEditForm(a)">
+                                    <i class="bi bi-pencil"></i>
+                                </button>
+                                <button class="btn btn-outline-danger btn-sm" @onclick="() => ConfirmDelete(a.Id)">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+        <div class="px-3 py-2 border-top border-opacity-10">
+            <Paginator TotalItems="_total" PageSize="_pageSize" CurrentPage="_page"
+                       OnPageChanged="async p => { _page = p; await LoadAsync(); }" />
+        </div>
     </div>
-
-    <Paginator TotalItems="_total" PageSize="_pageSize" CurrentPage="_page"
-               OnPageChanged="async p => { _page = p; await LoadAsync(); }" />
-
-    @if (!_artists.Any())
-    {
-        <p class="text-muted text-center mt-3">Žádné záznamy.</p>
-    }
 }
-
-<ConfirmDialog @ref="_confirmDialog" />
 
 @code {
     private ConfirmDialog _confirmDialog = default!;
@@ -164,7 +167,6 @@ else
     private bool _showForm = false;
     private int? _editId = null;
     private string? _error = null;
-
     private ArtistFormModel _form = new();
 
     private class ArtistFormModel
@@ -196,37 +198,25 @@ else
         _loading = false;
     }
 
-    private void ShowAddForm()
-    {
-        _editId = null;
-        _form = new ArtistFormModel();
-        _error = null;
-        _showForm = true;
-    }
+    private async Task ResetAndLoad() { _page = 1; await LoadAsync(); }
+
+    private void ShowAddForm() { _editId = null; _form = new(); _error = null; _showForm = true; }
 
     private void ShowEditForm(Artist a)
     {
         _editId = a.Id;
         _form = new ArtistFormModel
         {
-            Name = a.Name,
-            SortName = a.SortName,
-            ActiveFromYear = a.ActiveFromYear,
-            ActiveToYear = a.ActiveToYear,
-            ConfidenceScore = a.ConfidenceScore,
-            OfficialWebsiteUrl = a.OfficialWebsiteUrl,
+            Name = a.Name, SortName = a.SortName,
+            ActiveFromYear = a.ActiveFromYear, ActiveToYear = a.ActiveToYear,
+            ConfidenceScore = a.ConfidenceScore, OfficialWebsiteUrl = a.OfficialWebsiteUrl,
             GuidId = a.GuidId
         };
         _error = null;
         _showForm = true;
     }
 
-    private void HideForm()
-    {
-        _showForm = false;
-        _editId = null;
-        _error = null;
-    }
+    private void HideForm() { _showForm = false; _editId = null; _error = null; }
 
     private async Task SaveAsync()
     {
@@ -238,48 +228,34 @@ else
                 var existing = await db.Artists.FindAsync(_editId.Value);
                 if (existing != null)
                 {
-                    existing.Name = _form.Name;
-                    existing.SortName = _form.SortName;
-                    existing.ActiveFromYear = _form.ActiveFromYear;
-                    existing.ActiveToYear = _form.ActiveToYear;
+                    existing.Name = _form.Name; existing.SortName = _form.SortName;
+                    existing.ActiveFromYear = _form.ActiveFromYear; existing.ActiveToYear = _form.ActiveToYear;
                     existing.ConfidenceScore = _form.ConfidenceScore;
-                    existing.OfficialWebsiteUrl = _form.OfficialWebsiteUrl;
-                    existing.GuidId = _form.GuidId;
+                    existing.OfficialWebsiteUrl = _form.OfficialWebsiteUrl; existing.GuidId = _form.GuidId;
                 }
             }
             else
             {
-                var artist = new Artist
+                db.Artists.Add(new Artist
                 {
-                    Name = _form.Name,
-                    SortName = _form.SortName,
-                    ActiveFromYear = _form.ActiveFromYear,
-                    ActiveToYear = _form.ActiveToYear,
+                    Name = _form.Name, SortName = _form.SortName,
+                    ActiveFromYear = _form.ActiveFromYear, ActiveToYear = _form.ActiveToYear,
                     ConfidenceScore = _form.ConfidenceScore,
-                    OfficialWebsiteUrl = _form.OfficialWebsiteUrl,
-                    GuidId = _form.GuidId
-                };
-                db.Artists.Add(artist);
+                    OfficialWebsiteUrl = _form.OfficialWebsiteUrl, GuidId = _form.GuidId
+                });
             }
             await db.SaveChangesAsync();
-            Toast.ShowSuccess("Uloženo", _editId.HasValue ? "Interpret byl úspěšně upraven." : "Interpret byl úspěšně přidán.");
+            Toast.ShowSuccess("Uloženo", _editId.HasValue ? "Interpret byl upraven." : "Interpret byl přidán.");
             HideForm();
             await LoadAsync();
         }
-        catch (Exception ex)
-        {
-            _error = ex.Message;
-            Toast.ShowError("Chyba", $"Nepodařilo se uložit: {ex.Message}");
-        }
+        catch (Exception ex) { _error = ex.Message; Toast.ShowError("Chyba", ex.Message); }
     }
 
     private async Task ConfirmDelete(int id)
     {
         _pendingDeleteId = id;
-        var confirmed = await _confirmDialog.ShowAsync(
-            "Smazat záznam",
-            "Opravdu chcete smazat tohoto interpreta? Tato akce je nevratná.");
-        if (confirmed)
+        if (await _confirmDialog.ShowAsync("Smazat interpreta", "Opravdu chcete smazat tohoto interpreta? Tato akce je nevratná."))
             await DeleteAsync(_pendingDeleteId);
     }
 
@@ -289,25 +265,11 @@ else
         {
             await using var db = await DbFactory.CreateDbContextAsync();
             var existing = await db.Artists.FindAsync(id);
-            if (existing != null)
-            {
-                db.Remove(existing);
-                await db.SaveChangesAsync();
-                Toast.ShowSuccess("Smazáno", "Interpret byl úspěšně smazán.");
-            }
+            if (existing != null) { db.Remove(existing); await db.SaveChangesAsync(); }
+            Toast.ShowSuccess("Smazáno", "Interpret byl odstraněn.");
             await LoadAsync();
         }
-        catch (Exception ex)
-        {
-            _error = ex.Message;
-            Toast.ShowError("Chyba", $"Nepodařilo se smazat: {ex.Message}");
-        }
-    }
-
-    private async Task OnSearchChanged()
-    {
-        _page = 1;
-        await LoadAsync();
+        catch (Exception ex) { _error = ex.Message; Toast.ShowError("Chyba", ex.Message); }
     }
 
     private async Task ExportCsvAsync()
