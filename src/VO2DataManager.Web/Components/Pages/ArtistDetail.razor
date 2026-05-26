@@ -1,0 +1,180 @@
+@page "/artists/{Id:int}"
+@rendermode InteractiveServer
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+
+@using Microsoft.EntityFrameworkCore
+@using SharedServices.Models.AiData
+@inject IDbContextFactory<AppDbContextAiData> DbFactory
+
+<PageTitle>@(_artist?.Name ?? "Interpret") — VO2 Data Manager</PageTitle>
+
+@if (_loading)
+{
+    <div class="ui-anim-fade-up d-flex align-items-center gap-2 mt-4">
+        <div class="spinner-border spinner-border-sm text-primary" role="status"></div>
+        <span class="text-muted">Načítám…</span>
+    </div>
+}
+else if (_artist is null)
+{
+    <div class="ui-panel ui-anim-fade-up text-center p-4" style="max-width:480px;margin:60px auto;">
+        <div style="font-size:2.5rem;margin-bottom:.5rem;">🔍</div>
+        <h4>Interpret nenalezen</h4>
+        <p class="text-muted small">Interpret s tímto ID neexistuje.</p>
+        <a href="/artists" class="btn btn-primary btn-sm">Zpět na seznam</a>
+    </div>
+}
+else
+{
+    <div class="ui-page-header ui-anim-fade-up">
+        <div class="d-flex align-items-center gap-3">
+            <a href="/artists" class="btn btn-outline-secondary btn-sm">
+                <i class="bi bi-arrow-left"></i>
+            </a>
+            <h3 class="m-0"><i class="bi bi-music-note-beamed me-2 text-accent"></i>@_artist.Name</h3>
+        </div>
+        <span class="badge bg-secondary">@_albums.Count alb</span>
+    </div>
+
+    <!-- Artist info -->
+    <div class="row g-3">
+        <div class="col-lg-4">
+            <div class="ui-panel ui-anim-fade-up h-100">
+                <div class="ui-panel-header">
+                    <span class="ui-panel-title">
+                        <i class="bi bi-person-circle text-accent"></i>
+                        Informace
+                    </span>
+                </div>
+                <div class="p-3">
+                    <dl class="row mb-0 small">
+                        <dt class="col-5 text-muted">Název</dt>
+                        <dd class="col-7 fw-semibold">@(_artist.Name ?? "—")</dd>
+
+                        <dt class="col-5 text-muted">Sort name</dt>
+                        <dd class="col-7">@(_artist.SortName ?? "—")</dd>
+
+                        <dt class="col-5 text-muted">Aktivní od</dt>
+                        <dd class="col-7">@(_artist.ActiveFromYear?.ToString() ?? "—")</dd>
+
+                        <dt class="col-5 text-muted">Aktivní do</dt>
+                        <dd class="col-7">@(_artist.ActiveToYear?.ToString() ?? "dosud")</dd>
+
+                        <dt class="col-5 text-muted">Skóre</dt>
+                        <dd class="col-7">
+                            @if (_artist.ConfidenceScore.HasValue)
+                            {
+                                <span class="badge bg-secondary">@_artist.ConfidenceScore</span>
+                            }
+                            else { <span>—</span> }
+                        </dd>
+
+                        @if (!string.IsNullOrEmpty(_artist.OfficialWebsiteUrl))
+                        {
+                            <dt class="col-5 text-muted">Web</dt>
+                            <dd class="col-7">
+                                <a href="@_artist.OfficialWebsiteUrl" target="_blank" class="text-accent small">
+                                    <i class="bi bi-box-arrow-up-right me-1"></i>Odkaz
+                                </a>
+                            </dd>
+                        }
+                        @if (!string.IsNullOrEmpty(_artist.ArtistKey))
+                        {
+                            <dt class="col-5 text-muted">Artist key</dt>
+                            <dd class="col-7 text-muted"><code style="font-size:.7rem">@_artist.ArtistKey</code></dd>
+                        }
+                    </dl>
+                </div>
+            </div>
+        </div>
+
+        <!-- Albums -->
+        <div class="col-lg-8">
+            <div class="ui-panel ui-anim-fade-up h-100">
+                <div class="ui-panel-header">
+                    <span class="ui-panel-title">
+                        <i class="bi bi-vinyl text-accent"></i>
+                        Alba
+                    </span>
+                    <span class="badge bg-secondary">@_albums.Count</span>
+                </div>
+                @if (!_albums.Any())
+                {
+                    <div class="p-3 text-muted small">Žádná alba pro tohoto interpreta.</div>
+                }
+                else
+                {
+                    <div class="table-responsive">
+                        <table class="table table-hover table-sm align-middle mb-0">
+                            <thead>
+                                <tr>
+                                    <th>Název alba</th>
+                                    <th>Rok</th>
+                                    <th>Label</th>
+                                    <th class="text-center">Skóre</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var a in _albums.OrderBy(a => a.ReleaseYear))
+                                {
+                                    <tr>
+                                        <td class="fw-semibold">@(a.Title ?? "—")</td>
+                                        <td class="text-muted small">@(a.ReleaseYear?.ToString() ?? "—")</td>
+                                        <td class="text-muted small">@(a.Label ?? "—")</td>
+                                        <td class="text-center">
+                                            @if (a.ConfidenceScore.HasValue)
+                                            {
+                                                <span class="badge bg-secondary small">@a.ConfidenceScore</span>
+                                            }
+                                            else { <span class="text-muted small">—</span> }
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public int Id { get; set; }
+
+    private bool _loading = true;
+    private Artist? _artist;
+    private List<Album> _albums = new();
+
+    protected override async Task OnParametersSetAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        await using var db = await DbFactory.CreateDbContextAsync();
+
+        _artist = await db.Artists.FindAsync(Id);
+
+        if (_artist is not null && !string.IsNullOrEmpty(_artist.GuidId))
+        {
+            var albumGuidIds = await db.ArtistAlbums
+                .Where(aa => aa.ArtistGuidId == _artist.GuidId)
+                .Select(aa => aa.AlbumGuidId)
+                .ToListAsync();
+
+            _albums = await db.Albums
+                .Where(a => a.GuidId != null && albumGuidIds.Contains(a.GuidId))
+                .ToListAsync();
+        }
+        else if (_artist is not null)
+        {
+            // Fallback: match by ArtistDisplay
+            _albums = await db.Albums
+                .Where(a => a.ArtistDisplay != null && a.ArtistDisplay.Contains(_artist.Name ?? ""))
+                .Take(50)
+                .ToListAsync();
+        }
+
+        _loading = false;
+    }
+}

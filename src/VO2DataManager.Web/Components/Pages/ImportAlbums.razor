@@ -1,0 +1,233 @@
+@page "/import-albums"
+@rendermode InteractiveServer
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+
+@using Microsoft.EntityFrameworkCore
+@using SharedServices.Models.AiData
+@inject IDbContextFactory<AppDbContextAiData> DbFactory
+@inject ToastService Toast
+@inject IJSRuntime JS
+
+<PageTitle>Import alb — VO2 Data Manager</PageTitle>
+
+<div class="ui-page-header ui-anim-fade-up">
+    <div class="d-flex align-items-center gap-3">
+        <a href="/albums" class="btn btn-outline-secondary btn-sm">
+            <i class="bi bi-arrow-left"></i>
+        </a>
+        <h3 class="m-0"><i class="bi bi-upload me-2"></i>Import alb</h3>
+    </div>
+</div>
+
+<!-- Instructions -->
+<div class="ui-panel ui-anim-fade-up">
+    <div class="ui-panel-header">
+        <span class="ui-panel-title">
+            <i class="bi bi-info-circle text-accent"></i>
+            Instrukce
+        </span>
+    </div>
+    <div class="p-3">
+        <p class="mb-1">CSV formát: <code class="text-accent">Název,Interpret,RokVydání,Label,ConfidenceScore</code></p>
+        <p class="text-muted small mb-3">
+            První řádek (hlavička) je přeskočen. Rok a skóre = celá čísla (mohou být prázdná).
+            Odpovídá exportu z <a href="/albums" class="text-accent">Alba</a>.
+        </p>
+        <button class="btn btn-outline-secondary btn-sm" @onclick="DownloadSampleAsync">
+            <i class="bi bi-download me-1"></i>Stáhnout vzorový soubor
+        </button>
+    </div>
+</div>
+
+<!-- Upload -->
+<div class="ui-panel ui-anim-fade-up">
+    <div class="ui-panel-header">
+        <span class="ui-panel-title">
+            <i class="bi bi-file-earmark-arrow-up text-accent"></i>
+            Nahrát CSV soubor
+        </span>
+    </div>
+    <div class="p-3">
+        <InputFile OnChange="OnFileSelectedAsync" accept=".csv"
+                   class="form-control form-control-sm mb-2"
+                   style="background:rgba(255,255,255,0.05);border-color:rgba(255,255,255,0.1);color:var(--ui-text-1)"
+                   disabled="@_importing" />
+        @if (!string.IsNullOrEmpty(_fileName))
+        {
+            <p class="text-muted small mb-0">
+                <i class="bi bi-file-earmark-text me-1"></i>@_fileName
+            </p>
+        }
+    </div>
+</div>
+
+@if (!string.IsNullOrEmpty(_error))
+{
+    <div class="alert alert-danger alert-dismissible ui-anim-fade-up" role="alert">
+        @_error
+        <button type="button" class="btn-close" @onclick="() => _error = null"></button>
+    </div>
+}
+@if (_parseErrors > 0)
+{
+    <div class="alert alert-warning ui-anim-fade-up">
+        <i class="bi bi-exclamation-triangle me-1"></i>@_parseErrors řádků přeskočeno kvůli chybám.
+    </div>
+}
+
+@if (_preview.Count > 0)
+{
+    <div class="ui-panel ui-anim-fade-up">
+        <div class="ui-panel-header">
+            <span class="ui-panel-title">
+                <i class="bi bi-table text-accent"></i>
+                Náhled (@_preview.Count z @_allParsed.Count)
+            </span>
+            @if (_allParsed.Count > _preview.Count)
+            {
+                <span class="text-muted small">… a dalších @(_allParsed.Count - _preview.Count) řádků</span>
+            }
+        </div>
+        <div class="table-responsive">
+            <table class="table table-hover table-sm align-middle mb-0">
+                <thead>
+                    <tr>
+                        <th>Název</th>
+                        <th>Interpret</th>
+                        <th>Rok</th>
+                        <th>Label</th>
+                        <th class="text-center">Skóre</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var a in _preview)
+                    {
+                        <tr>
+                            <td class="fw-semibold">@a.Title</td>
+                            <td class="text-muted small">@(a.ArtistDisplay ?? "—")</td>
+                            <td class="text-muted small">@(a.ReleaseYear?.ToString() ?? "—")</td>
+                            <td class="text-muted small">@(a.Label ?? "—")</td>
+                            <td class="text-center"><span class="badge bg-secondary small">@(a.ConfidenceScore?.ToString() ?? "—")</span></td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+        <div class="p-3 border-top border-opacity-10 d-flex gap-2">
+            <button class="btn btn-success btn-sm" @onclick="ImportAsync" disabled="@_importing">
+                @if (_importing)
+                {
+                    <span class="spinner-border spinner-border-sm me-1" role="status"></span>
+                }
+                else
+                {
+                    <i class="bi bi-cloud-upload me-1"></i>
+                }
+                Importovat @_allParsed.Count alb
+            </button>
+            <button class="btn btn-outline-secondary btn-sm" @onclick="Reset" disabled="@_importing">Zrušit</button>
+        </div>
+    </div>
+}
+
+@code {
+    string? _fileName;
+    List<Album> _allParsed = new();
+    List<Album> _preview = new();
+    int _parseErrors;
+    bool _importing;
+    string? _error;
+
+    private async Task DownloadSampleAsync()
+    {
+        var sample = "Název,Interpret,RokVydání,Label,ConfidenceScore\n" +
+                     "Abbey Road,The Beatles,1969,Apple Records,98\n" +
+                     "\"Led Zeppelin IV\",Led Zeppelin,1971,Atlantic Records,95\n" +
+                     "Ziggy Stardust,David Bowie,1972,,88\n";
+        var bytes = System.Text.Encoding.UTF8.GetBytes(sample);
+        await JS.InvokeVoidAsync("downloadBase64File", "vzor_alba.csv", "text/csv", Convert.ToBase64String(bytes));
+    }
+
+    private async Task OnFileSelectedAsync(InputFileChangeEventArgs e)
+    {
+        Reset();
+        var file = e.File;
+        _fileName = file.Name;
+        try
+        {
+            using var stream = file.OpenReadStream(maxAllowedSize: 5 * 1024 * 1024);
+            using var reader = new System.IO.StreamReader(stream, System.Text.Encoding.UTF8);
+            ParseCsv(await reader.ReadToEndAsync());
+        }
+        catch (Exception ex)
+        {
+            _error = $"Chyba při čtení souboru: {ex.Message}";
+            Toast.ShowError("Chyba čtení", ex.Message);
+        }
+    }
+
+    private void ParseCsv(string content)
+    {
+        _allParsed = new(); _parseErrors = 0;
+        var lines = content.Split('\n', StringSplitOptions.RemoveEmptyEntries);
+        for (int i = 1; i < lines.Length; i++)
+        {
+            var line = lines[i].TrimEnd('\r');
+            if (string.IsNullOrWhiteSpace(line)) continue;
+            var f = SplitCsvLine(line);
+            if (f.Count < 1) { _parseErrors++; continue; }
+            try
+            {
+                _allParsed.Add(new Album
+                {
+                    Title          = f[0],
+                    ArtistDisplay  = f.Count > 1 ? f[1] : null,
+                    ReleaseYear    = f.Count > 2 && int.TryParse(f[2], out var yr) ? yr : null,
+                    Label          = f.Count > 3 ? f[3] : null,
+                    ConfidenceScore= f.Count > 4 && int.TryParse(f[4], out var cs) ? cs : null,
+                    CreatedAt      = DateTime.UtcNow,
+                    UpdatedAt      = DateTime.UtcNow
+                });
+            }
+            catch { _parseErrors++; }
+        }
+        _preview = _allParsed.Take(20).ToList();
+    }
+
+    private static List<string> SplitCsvLine(string line)
+    {
+        var fields = new List<string>();
+        var cur = new System.Text.StringBuilder();
+        bool inQ = false;
+        for (int i = 0; i < line.Length; i++)
+        {
+            char c = line[i];
+            if (inQ) { if (c == '"') { if (i + 1 < line.Length && line[i + 1] == '"') { cur.Append('"'); i++; } else inQ = false; } else cur.Append(c); }
+            else { if (c == '"') inQ = true; else if (c == ',') { fields.Add(cur.ToString().Trim()); cur.Clear(); } else cur.Append(c); }
+        }
+        fields.Add(cur.ToString().Trim());
+        return fields;
+    }
+
+    private async Task ImportAsync()
+    {
+        if (_allParsed.Count == 0) return;
+        _importing = true; _error = null;
+        try
+        {
+            await using var db = await DbFactory.CreateDbContextAsync();
+            db.Albums.AddRange(_allParsed);
+            await db.SaveChangesAsync();
+            Toast.ShowSuccess("Import dokončen", $"Importováno {_allParsed.Count} alb.");
+            Reset();
+        }
+        catch (Exception ex) { _error = ex.Message; Toast.ShowError("Chyba importu", ex.Message); }
+        finally { _importing = false; }
+    }
+
+    private void Reset()
+    {
+        _fileName = null; _allParsed = new(); _preview = new();
+        _parseErrors = 0; _error = null;
+    }
+}

@@ -120,7 +120,9 @@ else
                     @foreach (var a in _artists)
                     {
                         <tr>
-                            <td class="fw-semibold">@a.Name</td>
+                            <td class="fw-semibold">
+                                <a href="/artists/@a.Id" class="text-decoration-none">@a.Name</a>
+                            </td>
                             <td class="text-muted small">@a.SortName</td>
                             <td class="text-center text-muted small">@a.ActiveFromYear</td>
                             <td class="text-center text-muted small">@a.ActiveToYear</td>
