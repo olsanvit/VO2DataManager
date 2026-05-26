@@ -1,0 +1,236 @@
+@page "/albums/{Id:int}"
+@rendermode InteractiveServer
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+
+@using Microsoft.EntityFrameworkCore
+@using SharedServices.Models.AiData
+@inject IDbContextFactory<AppDbContextAiData> DbFactory
+
+<PageTitle>@(_album?.Title ?? "Album") — VO2 Data Manager</PageTitle>
+
+@if (_loading)
+{
+    <div class="ui-anim-fade-up d-flex align-items-center gap-2 mt-4">
+        <div class="spinner-border spinner-border-sm text-primary" role="status"></div>
+        <span class="text-muted">Načítám…</span>
+    </div>
+}
+else if (_album is null)
+{
+    <div class="ui-panel ui-anim-fade-up text-center p-4" style="max-width:480px;margin:60px auto;">
+        <div style="font-size:2.5rem">🔍</div>
+        <h4>Album nenalezeno</h4>
+        <a href="/albums" class="btn btn-primary btn-sm mt-2">Zpět na seznam</a>
+    </div>
+}
+else
+{
+    <div class="ui-page-header ui-anim-fade-up">
+        <div class="d-flex align-items-center gap-3">
+            <a href="/albums" class="btn btn-outline-secondary btn-sm">
+                <i class="bi bi-arrow-left"></i>
+            </a>
+            <h3 class="m-0">
+                <i class="bi bi-vinyl me-2 text-accent"></i>@_album.Title
+            </h3>
+        </div>
+        <div class="d-flex gap-2">
+            @if (_album.ReleaseYear.HasValue)
+            {
+                <span class="badge bg-secondary">@_album.ReleaseYear</span>
+            }
+            <span class="badge bg-secondary">@_tracks.Count skladeb</span>
+        </div>
+    </div>
+
+    <div class="row g-3">
+        <!-- Album info -->
+        <div class="col-lg-4">
+            <div class="ui-panel ui-anim-fade-up h-100">
+                <div class="ui-panel-header">
+                    <span class="ui-panel-title">
+                        <i class="bi bi-vinyl text-accent"></i>
+                        Info o albu
+                    </span>
+                </div>
+                <div class="p-3">
+                    <dl class="row mb-0 small">
+                        <dt class="col-5 text-muted">Název</dt>
+                        <dd class="col-7 fw-semibold">@_album.Title</dd>
+
+                        <dt class="col-5 text-muted">Interpret</dt>
+                        <dd class="col-7">@(string.IsNullOrEmpty(_album.ArtistDisplay) ? "—" : _album.ArtistDisplay)</dd>
+
+                        @if (_album.ReleaseYear.HasValue)
+                        {
+                            <dt class="col-5 text-muted">Rok vydání</dt>
+                            <dd class="col-7">@_album.ReleaseYear</dd>
+                        }
+
+                        @if (!string.IsNullOrEmpty(_album.ReleaseDate))
+                        {
+                            <dt class="col-5 text-muted">Datum vydání</dt>
+                            <dd class="col-7">@_album.ReleaseDate</dd>
+                        }
+
+                        @if (!string.IsNullOrEmpty(_album.Label))
+                        {
+                            <dt class="col-5 text-muted">Label</dt>
+                            <dd class="col-7">@_album.Label</dd>
+                        }
+
+                        @if (_album.ConfidenceScore.HasValue)
+                        {
+                            <dt class="col-5 text-muted">Skóre</dt>
+                            <dd class="col-7"><span class="badge bg-secondary">@_album.ConfidenceScore</span></dd>
+                        }
+
+                        @if (!string.IsNullOrEmpty(_album.GuidId))
+                        {
+                            <dt class="col-5 text-muted">GuidId</dt>
+                            <dd class="col-7 small text-muted" style="word-break:break-all">@_album.GuidId</dd>
+                        }
+
+                        @if (!string.IsNullOrEmpty(_album.DataQualityNote))
+                        {
+                            <dt class="col-5 text-muted">Kvalita dat</dt>
+                            <dd class="col-7 text-warning small">@_album.DataQualityNote</dd>
+                        }
+                    </dl>
+
+                    @if (_artists.Count > 0)
+                    {
+                        <hr class="border-opacity-10" />
+                        <div class="small text-muted fw-semibold mb-2">Interpreti</div>
+                        <div class="d-flex flex-column gap-1">
+                            @foreach (var a in _artists)
+                            {
+                                <a href="/artists/@a.Id" class="text-decoration-none small">
+                                    <i class="bi bi-person-fill me-1 text-accent"></i>@a.Name
+                                </a>
+                            }
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+
+        <!-- Tracklist -->
+        <div class="col-lg-8">
+            <div class="ui-panel ui-anim-fade-up h-100">
+                <div class="ui-panel-header">
+                    <span class="ui-panel-title">
+                        <i class="bi bi-music-note-list text-accent"></i>
+                        Skladby
+                    </span>
+                    <span class="badge bg-secondary">@_tracks.Count</span>
+                </div>
+                @if (!_tracks.Any())
+                {
+                    <div class="p-3 text-muted small">Žádné skladby nalezeny.</div>
+                }
+                else
+                {
+                    <div class="table-responsive">
+                        <table class="table table-hover table-sm align-middle mb-0">
+                            <thead>
+                                <tr>
+                                    <th class="text-center">Disk</th>
+                                    <th class="text-center">#</th>
+                                    <th>Skladba</th>
+                                    <th class="text-center">Rok</th>
+                                    <th class="text-center">Délka</th>
+                                    <th class="text-center">Skóre</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var (as_, song) in _tracks.OrderBy(x => x.albumSong.DiscNumber).ThenBy(x => x.albumSong.TrackNumber))
+                                {
+                                    <tr>
+                                        <td class="text-center text-muted small">@(as_.DiscNumber?.ToString() ?? "—")</td>
+                                        <td class="text-center text-muted small">@(as_.TrackNumber?.ToString() ?? "—")</td>
+                                        <td class="fw-semibold">@(song?.Title ?? "—")</td>
+                                        <td class="text-center text-muted small">@(song?.ReleaseYear?.ToString() ?? "—")</td>
+                                        <td class="text-center text-muted small">
+                                            @if (song?.DurationSeconds.HasValue == true)
+                                            {
+                                                var dur = TimeSpan.FromSeconds(song.DurationSeconds.Value);
+                                                <span>@($"{(int)dur.TotalMinutes}:{dur.Seconds:D2}")</span>
+                                            }
+                                            else { <span>—</span> }
+                                        </td>
+                                        <td class="text-center">
+                                            @if (song?.ConfidenceScore.HasValue == true)
+                                            {
+                                                <span class="badge bg-secondary small">@song.ConfidenceScore</span>
+                                            }
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public int Id { get; set; }
+
+    private bool _loading = true;
+    private Album? _album;
+    private List<(AlbumSong albumSong, Song? song)> _tracks = new();
+    private List<Artist> _artists = new();
+
+    protected override async Task OnParametersSetAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        await using var db = await DbFactory.CreateDbContextAsync();
+
+        _album = await db.Albums.FindAsync(Id);
+
+        if (_album is not null)
+        {
+            // Load tracks via AlbumSongs junction
+            var albumSongs = await db.AlbumSongs
+                .AsNoTracking()
+                .Where(a => a.AlbumGuidId == _album.GuidId)
+                .ToListAsync();
+
+            var songGuids = albumSongs
+                .Where(a => a.SongGuidId != null)
+                .Select(a => a.SongGuidId!)
+                .ToHashSet();
+
+            var songs = await db.Songs
+                .AsNoTracking()
+                .Where(s => s.GuidId != null && songGuids.Contains(s.GuidId))
+                .ToDictionaryAsync(s => s.GuidId!);
+
+            _tracks = albumSongs
+                .Select(a => (a, a.SongGuidId is not null && songs.TryGetValue(a.SongGuidId, out var s) ? s : null))
+                .ToList();
+
+            // Load associated artists
+            if (!string.IsNullOrEmpty(_album.GuidId))
+            {
+                var artistGuidIds = await db.ArtistAlbums
+                    .AsNoTracking()
+                    .Where(aa => aa.AlbumGuidId == _album.GuidId)
+                    .Select(aa => aa.ArtistGuidId)
+                    .ToListAsync();
+
+                _artists = await db.Artists
+                    .AsNoTracking()
+                    .Where(a => a.GuidId != null && artistGuidIds.Contains(a.GuidId))
+                    .ToListAsync();
+            }
+        }
+
+        _loading = false;
+    }
+}

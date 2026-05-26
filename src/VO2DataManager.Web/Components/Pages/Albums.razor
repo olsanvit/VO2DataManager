@@ -115,7 +115,7 @@ else
                     @foreach (var a in _albums)
                     {
                         <tr>
-                            <td class="fw-semibold">@a.Title</td>
+                            <td class="fw-semibold"><a href="/albums/@a.Id" class="text-decoration-none">@a.Title</a></td>
                             <td class="text-muted small">@a.ArtistDisplay</td>
                             <td class="text-center text-muted small">@a.ReleaseYear</td>
                             <td class="text-center"><span class="badge bg-secondary">@a.ConfidenceScore</span></td>
