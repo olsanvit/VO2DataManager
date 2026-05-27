@@ -118,7 +118,7 @@ else
                                 @foreach (var a in _albums.OrderBy(a => a.ReleaseYear))
                                 {
                                     <tr>
-                                        <td class="fw-semibold">@(a.Title ?? "—")</td>
+                                        <td class="fw-semibold"><a href="/albums/@a.Id" class="text-decoration-none">@(a.Title ?? "—")</a></td>
                                         <td class="text-muted small">@(a.ReleaseYear?.ToString() ?? "—")</td>
                                         <td class="text-muted small">@(a.Label ?? "—")</td>
                                         <td class="text-center">
