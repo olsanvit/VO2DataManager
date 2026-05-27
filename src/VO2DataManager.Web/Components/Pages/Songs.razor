@@ -101,7 +101,7 @@ else
                     @foreach (var s in _songs)
                     {
                         <tr>
-                            <td class="fw-semibold">@s.Title</td>
+                            <td class="fw-semibold"><a href="/songs/@s.Id" class="text-decoration-none">@s.Title</a></td>
                             <td class="text-center text-muted small">@s.ReleaseYear</td>
                             <td class="text-center text-muted small">@FormatDuration(s.DurationSeconds)</td>
                             <td class="text-end">
