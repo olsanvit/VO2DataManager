@@ -149,7 +149,13 @@ else
                                     <tr>
                                         <td class="text-center text-muted small">@(as_.DiscNumber?.ToString() ?? "—")</td>
                                         <td class="text-center text-muted small">@(as_.TrackNumber?.ToString() ?? "—")</td>
-                                        <td class="fw-semibold">@(song?.Title ?? "—")</td>
+                                        <td class="fw-semibold">
+                                            @if (song is not null)
+                                            {
+                                                <a href="/songs/@song.Id" class="text-decoration-none">@song.Title</a>
+                                            }
+                                            else { <span>—</span> }
+                                        </td>
                                         <td class="text-center text-muted small">@(song?.ReleaseYear?.ToString() ?? "—")</td>
                                         <td class="text-center text-muted small">
                                             @if (song?.DurationSeconds.HasValue == true)
