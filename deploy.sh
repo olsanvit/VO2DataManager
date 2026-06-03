@@ -1,3 +1,3 @@
-#!/bin/sh
-# Spustit na QNAP: sh deploy.sh
-deploy vo2datamanager
+#!/bin/bash
+# Deploy na QNAP — build lokalne, copy + restart na QNAP
+~/deploy-to-qnap.sh vo2data ${1:-prod}
