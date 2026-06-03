@@ -1,3 +1,4 @@
+using FluentAssertions;
 using Microsoft.AspNetCore.Mvc.Testing;
 
 namespace VO2DataManager.Tests;
@@ -11,7 +12,7 @@ public class IntegrationTests : IClassFixture<WebApplicationFactory<Program>>
     {
         _client = factory.WithWebHostBuilder(builder =>
         {
-            builder.UseSetting("ConnectionStrings:DefaultConnection", "DataSource=:memory:");
+            builder.UseSetting("ConnectionStrings:DefaultConnection1", "Host=localhost;Port=54321;Database=ci_test_db");
         }).CreateClient(new WebApplicationFactoryClientOptions
         {
             AllowAutoRedirect = false

@@ -211,14 +211,18 @@ app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
 
 // ── Migrate Identity DB + Seed admin ─────────────────────────────────────
-using (var scope = app.Services.CreateScope())
+try
 {
-    var db          = scope.ServiceProvider.GetRequiredService<AppDbContextAiDataIdentity>();
-    var userManager = scope.ServiceProvider.GetRequiredService<UserManager<AppUser>>();
-    var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
-    await db.Database.MigrateAsync();
-    await SeedAdminAsync(userManager, roleManager);
+    using (var scope = app.Services.CreateScope())
+    {
+        var db          = scope.ServiceProvider.GetRequiredService<AppDbContextAiDataIdentity>();
+        var userManager = scope.ServiceProvider.GetRequiredService<UserManager<AppUser>>();
+        var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
+        await db.Database.MigrateAsync();
+        await SeedAdminAsync(userManager, roleManager);
+    }
 }
+catch (Exception ex) { Log.Warning(ex, "DB migration/seed skipped — DB not available"); }
 
 
 app.Lifetime.ApplicationStopping.Register(() =>
