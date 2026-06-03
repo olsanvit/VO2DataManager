@@ -1,0 +1,127 @@
+@page "/artists"
+@inject IDbContextFactory<AppDbContextAiData> DbFactory
+
+<PageTitle>Interpreti — VO2 Data Manager</PageTitle>
+
+<div class="d-flex align-items-center gap-2 mb-3">
+    <i class="bi bi-person-badge text-primary fs-5"></i>
+    <h5 class="mb-0 fw-bold">Interpreti</h5>
+</div>
+
+<div class="mb-3">
+    <input class="form-control form-control-sm"
+           type="search"
+           placeholder="Hledat interpreta..."
+           @bind="_search"
+           @bind:event="oninput"
+           @bind:after="OnSearchChanged" />
+</div>
+
+@if (_loading)
+{
+    <div class="text-center py-4">
+        <div class="spinner-border text-primary" role="status">
+            <span class="visually-hidden">Načítání...</span>
+        </div>
+    </div>
+}
+else if (_artists.Count == 0)
+{
+    <div class="text-center text-muted py-4 small">Žádní interpreti nenalezeni.</div>
+}
+else
+{
+    <div class="rounded border bg-white shadow-sm">
+        @foreach (var artist in _artists)
+        {
+            <div class="d-flex align-items-center gap-3 px-3 py-2 border-bottom">
+                <i class="bi bi-person-circle text-secondary fs-5"></i>
+                <div class="flex-grow-1 overflow-hidden">
+                    <div class="fw-semibold small text-truncate">@artist.Name</div>
+                    @if (artist.ActiveFromYear.HasValue)
+                    {
+                        <div class="text-muted" style="font-size:.72rem">
+                            @artist.ActiveFromYear
+                            @if (artist.ActiveToYear.HasValue)
+                            {
+                                <span> — @artist.ActiveToYear</span>
+                            }
+                        </div>
+                    }
+                </div>
+                @if (artist.ConfidenceScore.HasValue)
+                {
+                    <span class="badge bg-primary-subtle text-primary" style="font-size:.7rem">
+                        @(((double)artist.ConfidenceScore.Value).ToString("0.0"))
+                    </span>
+                }
+            </div>
+        }
+    </div>
+
+    @if (_total > _pageSize)
+    {
+        <div class="d-flex justify-content-center gap-2 mt-3 flex-wrap">
+            <button class="btn btn-outline-secondary btn-sm"
+                    disabled="@(_page <= 1)"
+                    @onclick="PrevPage">
+                <i class="bi bi-chevron-left"></i>
+            </button>
+            <span class="small align-self-center text-muted">@_page / @TotalPages</span>
+            <button class="btn btn-outline-secondary btn-sm"
+                    disabled="@(_page >= TotalPages)"
+                    @onclick="NextPage">
+                <i class="bi bi-chevron-right"></i>
+            </button>
+        </div>
+    }
+}
+
+@code {
+    private bool _loading = true;
+    private List<Artist> _artists = new();
+    private string _search = string.Empty;
+    private int _page = 1;
+    private const int _pageSize = 25;
+    private int _total;
+
+    private int TotalPages => (int)Math.Ceiling(_total / (double)_pageSize);
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task OnSearchChanged()
+    {
+        _page = 1;
+        await LoadAsync();
+    }
+
+    private async Task PrevPage()
+    {
+        if (_page > 1) { _page--; await LoadAsync(); }
+    }
+
+    private async Task NextPage()
+    {
+        if (_page < TotalPages) { _page++; await LoadAsync(); }
+    }
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        StateHasChanged();
+
+        await using var db = await DbFactory.CreateDbContextAsync();
+        IQueryable<Artist> query = db.Artists.OrderBy(a => a.SortName ?? a.Name);
+
+        if (!string.IsNullOrWhiteSpace(_search))
+            query = query.Where(a => a.Name != null && a.Name.Contains(_search));
+
+        _total = await query.CountAsync();
+        _artists = await query
+            .Skip((_page - 1) * _pageSize)
+            .Take(_pageSize)
+            .ToListAsync();
+
+        _loading = false;
+    }
+}

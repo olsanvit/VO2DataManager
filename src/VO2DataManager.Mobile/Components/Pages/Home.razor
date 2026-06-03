@@ -1,0 +1,83 @@
+@page "/"
+@inject IDbContextFactory<AppDbContextAiData> DbFactory
+
+<PageTitle>VO2 Data Manager</PageTitle>
+
+<div class="p-3 mb-3 rounded border bg-white shadow-sm text-center">
+    <div style="font-size:2.5rem;margin-bottom:.5rem;">&#127925;</div>
+    <h4 class="fw-bold mb-1">VO2 Data Manager</h4>
+    <p class="text-muted small mb-0">Správa hudebních dat — interpreti, alba, skladby.</p>
+</div>
+
+@if (_loading)
+{
+    <div class="text-center py-4">
+        <div class="spinner-border text-primary" role="status">
+            <span class="visually-hidden">Načítání...</span>
+        </div>
+    </div>
+}
+else
+{
+    <div class="row g-3 mb-3">
+        <div class="col-4">
+            <div class="p-3 rounded border bg-white shadow-sm text-center">
+                <div class="fs-2 fw-bold text-primary">@_artistCount</div>
+                <div class="small text-muted">
+                    <i class="bi bi-person-badge me-1"></i>Interpreti
+                </div>
+            </div>
+        </div>
+        <div class="col-4">
+            <div class="p-3 rounded border bg-white shadow-sm text-center">
+                <div class="fs-2 fw-bold text-primary">@_albumCount</div>
+                <div class="small text-muted">
+                    <i class="bi bi-disc me-1"></i>Alba
+                </div>
+            </div>
+        </div>
+        <div class="col-4">
+            <div class="p-3 rounded border bg-white shadow-sm text-center">
+                <div class="fs-2 fw-bold text-primary">@_songCount</div>
+                <div class="small text-muted">
+                    <i class="bi bi-music-note me-1"></i>Skladby
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="rounded border bg-white shadow-sm p-3">
+        <a href="/artists" class="d-flex align-items-center gap-3 py-2 border-bottom text-decoration-none text-dark">
+            <i class="bi bi-person-badge text-primary fs-5"></i>
+            <div>
+                <div class="fw-semibold small">Interpreti</div>
+                <div class="text-muted" style="font-size:.75rem">Správa interpretů a umělců</div>
+            </div>
+            <i class="bi bi-chevron-right ms-auto text-muted"></i>
+        </a>
+        <a href="/albums" class="d-flex align-items-center gap-3 py-2 text-decoration-none text-dark">
+            <i class="bi bi-disc text-primary fs-5"></i>
+            <div>
+                <div class="fw-semibold small">Alba</div>
+                <div class="text-muted" style="font-size:.75rem">Přehled alb a jejich vydání</div>
+            </div>
+            <i class="bi bi-chevron-right ms-auto text-muted"></i>
+        </a>
+    </div>
+}
+
+@code {
+    private bool _loading = true;
+    private int _artistCount;
+    private int _albumCount;
+    private int _songCount;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await using var db = await DbFactory.CreateDbContextAsync();
+        _artistCount = await db.Artists.CountAsync();
+        _albumCount = await db.Albums.CountAsync();
+        _songCount = await db.Songs.CountAsync();
+        _loading = false;
+    }
+}
