@@ -180,13 +180,24 @@ app.MapGet("/auth/google/callback", async (
     HttpContext ctx,
     Microsoft.AspNetCore.Identity.SignInManager<AppUser> signInManager,
     Microsoft.AspNetCore.Identity.UserManager<AppUser> userManager,
+    IWebHostEnvironment env,
+    IConfiguration config,
     string? returnUrl) =>
 {
     var info = await signInManager.GetExternalLoginInfoAsync();
     if (info is null) return Results.Redirect("/login?error=external");
 
     var result = await signInManager.ExternalLoginSignInAsync(info.LoginProvider, info.ProviderKey, false);
-    if (result.Succeeded) return Results.Redirect(returnUrl ?? "/");
+    if (result.Succeeded)
+    {
+        var signedInUser = await userManager.FindByLoginAsync(info.LoginProvider, info.ProviderKey);
+        if (signedInUser is not null)
+        {
+            var denied = await MercenariesAndBeasts.Infrastructure.Auth.AccessGate.CheckAsync(signedInUser, signInManager, env, config);
+            if (denied is not null) return Results.Redirect(denied);
+        }
+        return Results.Redirect(returnUrl ?? "/");
+    }
 
     var email = info.Principal.FindFirst(System.Security.Claims.ClaimTypes.Email)?.Value ?? "";
     var user  = await userManager.FindByEmailAsync(email);
@@ -197,6 +208,8 @@ app.MapGet("/auth/google/callback", async (
     }
     await userManager.AddLoginAsync(user, info);
     await signInManager.SignInAsync(user, false);
+    var deniedFinal = await MercenariesAndBeasts.Infrastructure.Auth.AccessGate.CheckAsync(user, signInManager, env, config);
+    if (deniedFinal is not null) return Results.Redirect(deniedFinal);
     return Results.Redirect(returnUrl ?? "/");
 });
 
