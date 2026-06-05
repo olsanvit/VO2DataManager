@@ -112,6 +112,7 @@ builder.Services.AddScoped<AchievementService>(sp =>
         Definitions = VO2Achievements.All
     });
 builder.Services.AddScoped<AlertService>();
+builder.Services.AddScoped<LoadingService>();
 builder.Services.AddBlazoredModal();
 builder.Services.AddBlazoredLocalStorage();
 builder.Services.AddBlazoredSessionStorage();
