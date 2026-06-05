@@ -1,0 +1,20 @@
+@* Simple navigation card component *@
+<a href="@Href" class="quick-link-card text-decoration-none">
+    <div class="card border-0 shadow-sm h-100 p-3 d-flex flex-row align-items-center gap-3">
+        <div class="quick-link-icon @IconClass rounded-3 p-2 fs-4">
+            <i class="bi @Icon"></i>
+        </div>
+        <div>
+            <div class="fw-semibold">@Title</div>
+            <div class="text-muted small">@Description</div>
+        </div>
+    </div>
+</a>
+
+@code {
+    [Parameter] public string Href { get; set; } = "/";
+    [Parameter] public string Icon { get; set; } = "bi-link";
+    [Parameter] public string Title { get; set; } = "";
+    [Parameter] public string Description { get; set; } = "";
+    [Parameter] public string IconClass { get; set; } = "";
+}
