@@ -230,11 +230,8 @@ try
 {
     using (var scope = app.Services.CreateScope())
     {
-        var db          = scope.ServiceProvider.GetRequiredService<AppDbContextAiDataIdentity>();
-        var userManager = scope.ServiceProvider.GetRequiredService<UserManager<AppUser>>();
-        var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContextAiDataIdentity>();
         await db.Database.MigrateAsync();
-        await SeedAdminAsync(userManager, roleManager);
     }
 }
 catch (Exception ex) { Log.Warning(ex, "DB migration/seed skipped — DB not available"); }
@@ -250,30 +247,5 @@ try { app.Run(); }
 catch (Exception ex) { Log.Fatal(ex, "Host terminated unexpectedly"); }
 finally { Log.CloseAndFlush(); }
 
-// ── Seed helpers ──────────────────────────────────────────────────────────
-static async Task SeedAdminAsync(UserManager<AppUser> userManager, RoleManager<IdentityRole> roleManager)
-{
-    const string adminRole = "Admin";
-    if (!await roleManager.RoleExistsAsync(adminRole))
-        await roleManager.CreateAsync(new IdentityRole(adminRole));
-
-    await EnsureAdminAsync(userManager, adminRole, "admin@local",             "admin", "Admin123.");
-    await EnsureAdminAsync(userManager, adminRole, "olsanskyvitek@gmail.com", "vitek", "Vitek575");
-}
-
-static async Task EnsureAdminAsync(UserManager<AppUser> userManager, string adminRole,
-    string email, string username, string password)
-{
-    var user = await userManager.FindByEmailAsync(email);
-    if (user is null)
-    {
-        user = new AppUser { UserName = username, Email = email, EmailConfirmed = true, IsAdmin = true };
-        var result = await userManager.CreateAsync(user, password);
-        if (!result.Succeeded)
-            throw new Exception($"Failed to create {email}: {string.Join(", ", result.Errors.Select(e => e.Description))}");
-    }
-    if (!await userManager.IsInRoleAsync(user, adminRole))
-        await userManager.AddToRoleAsync(user, adminRole);
-}
 
 public partial class Program { }
