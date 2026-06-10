@@ -1,5 +1,6 @@
 @page "/import-albums"
 @rendermode InteractiveServer
+@attribute [Authorize(Roles = "Admin")]
 @attribute [Microsoft.AspNetCore.Authorization.Authorize]
 
 @using Microsoft.EntityFrameworkCore

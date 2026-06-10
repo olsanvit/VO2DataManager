@@ -101,6 +101,7 @@ builder.Services.AddHttpContextAccessor();
 builder.Services.AddCors();
 builder.Services.AddHealthChecks();
 builder.Services.AddMudServices();
+builder.Services.AddSharedUI(builder.Configuration);
 builder.Services.AddRadzenComponents();
 builder.Services.AddScoped<UiLibraryService>();
 builder.Services.AddScoped<ToastService>();
@@ -238,6 +239,9 @@ try
 }
 catch (Exception ex) { Log.Warning(ex, "DB migration/seed skipped — DB not available"); }
 
+
+// Seed role a admin účet
+await AdminUserSeeder.SeedAsync(app.Services, app.Configuration);
 
 app.Lifetime.ApplicationStopping.Register(() =>
     Log.Warning("Application stopping — flushing logs..."));
