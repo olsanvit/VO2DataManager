@@ -120,6 +120,7 @@ builder.Services.AddBlazoredSessionStorage();
 builder.Services.AddApexCharts();
 builder.Services.AddScoped<ErrorService<AppDbContextAiData>>();
 builder.Services.AddScoped<EfCoreService<AppDbContextAiData>>();
+builder.Services.AddGlobalErrorLogging<AppDbContextAiData>();
 builder.Services.AddSingleton<SharedServices.Services.ThemeService>(_ => new SharedServices.Services.ThemeService(builder.Configuration));
 builder.Services.AddScoped<AiDataSyncService>();
 builder.Services.AddDistributedMemoryCache();

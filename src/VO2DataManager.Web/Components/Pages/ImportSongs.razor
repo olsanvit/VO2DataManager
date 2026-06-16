@@ -1,7 +1,6 @@
 @page "/import-songs"
 @rendermode InteractiveServer
-@attribute [Authorize(Roles = "Admin")]
-@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "Admin")]
 
 @using Microsoft.EntityFrameworkCore
 @using SharedServices.Models.AiData
