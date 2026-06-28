@@ -4,14 +4,21 @@
 
 @using Microsoft.EntityFrameworkCore
 @inject IDbContextFactory<AppDbContextAiData> DbFactory
+@implements IDisposable
 
 <PageTitle>Agenti — VO2 Data Manager</PageTitle>
 
 <div class="ui-page-header ui-anim-fade-up">
     <h3><i class="bi bi-robot me-2"></i>Agenti</h3>
-    <button class="btn btn-sm btn-outline-secondary" @onclick="LoadAsync">
-        <i class="bi bi-arrow-clockwise me-1"></i>Obnovit
-    </button>
+    <div class="d-flex gap-2 align-items-center">
+        <span class="text-muted small">
+            <i class="bi bi-arrow-clockwise me-1"></i>
+            Auto-refresh za @_refreshCountdown s
+        </span>
+        <button class="btn btn-sm btn-outline-secondary" @onclick="RefreshNow">
+            <i class="bi bi-arrow-clockwise me-1"></i>Obnovit
+        </button>
+    </div>
 </div>
 
 @if (_loading)
@@ -25,55 +32,57 @@ else
 {
     <!-- Stats bar -->
     <div class="row g-3 mb-4 ui-anim-fade-up">
-        <div class="col-6 col-md-2">
-            <div class="ui-panel text-center p-3">
+        <div class="col-4 col-md-2">
+            <div class="ui-panel text-center p-3" style="cursor:pointer" @onclick='() => SetFilter("OK")'>
                 <div class="fs-4 fw-bold text-success">@_agents.Count(a => a.Status == "ok")</div>
                 <div class="text-muted small">OK</div>
             </div>
         </div>
-        <div class="col-6 col-md-2">
-            <div class="ui-panel text-center p-3">
+        <div class="col-4 col-md-2">
+            <div class="ui-panel text-center p-3" style="cursor:pointer" @onclick='() => SetFilter("Chyba")'>
                 <div class="fs-4 fw-bold text-danger">@_agents.Count(a => a.Status != null && a.Status.Contains("error"))</div>
                 <div class="text-muted small">Chyba</div>
             </div>
         </div>
-        <div class="col-6 col-md-2">
-            <div class="ui-panel text-center p-3">
+        <div class="col-4 col-md-2">
+            <div class="ui-panel text-center p-3" style="cursor:pointer" @onclick='() => SetFilter("Blokováni")'>
                 <div class="fs-4 fw-bold text-warning">@_agents.Count(a => a.Status != null && a.Status.Contains("blocked"))</div>
                 <div class="text-muted small">Blokováni</div>
             </div>
         </div>
-        <div class="col-6 col-md-2">
-            <div class="ui-panel text-center p-3">
+        <div class="col-4 col-md-2">
+            <div class="ui-panel text-center p-3" style="cursor:pointer" @onclick='() => SetFilter("Bez dat")'>
                 <div class="fs-4 fw-bold text-secondary">@_agents.Count(a => a.Status == null)</div>
                 <div class="text-muted small">Bez dat</div>
             </div>
         </div>
-        <div class="col-6 col-md-2">
-            <div class="ui-panel text-center p-3">
+        <div class="col-4 col-md-2">
+            <div class="ui-panel text-center p-3" style="cursor:pointer" @onclick='() => SetFilter("Po termínu")'>
                 <div class="fs-4 fw-bold text-danger">@_agents.Count(a => IsOverdue(a))</div>
                 <div class="text-muted small">Po termínu</div>
             </div>
         </div>
-        <div class="col-6 col-md-2">
-            <div class="ui-panel text-center p-3">
+        <div class="col-4 col-md-2">
+            <div class="ui-panel text-center p-3" style="cursor:pointer" @onclick='() => SetFilter("Vše")'>
                 <div class="fs-4 fw-bold text-accent">@_agents.Count</div>
                 <div class="text-muted small">Celkem</div>
             </div>
         </div>
     </div>
 
-    <!-- Filter -->
+    <!-- Filter bar -->
     <div class="ui-panel ui-anim-fade-up mb-3 p-3">
         <div class="d-flex flex-wrap gap-2 align-items-center">
             <span class="text-muted small me-1">Filtr:</span>
             @foreach (var f in _filters)
             {
                 <button class="btn btn-sm @(f == _activeFilter ? "btn-primary" : "btn-outline-secondary")"
-                        @onclick="() => SetFilter(f)">
-                    @f
-                </button>
+                        @onclick="() => SetFilter(f)">@f</button>
             }
+            <div class="form-check form-switch ms-2 mb-0">
+                <input class="form-check-input" type="checkbox" id="showInactive" @bind="_showInactive" />
+                <label class="form-check-label text-muted small" for="showInactive">Zobrazit deaktivované</label>
+            </div>
             <div class="ms-auto">
                 <input class="form-control form-control-sm" style="width:220px"
                        @bind="_search" @bind:event="oninput" placeholder="Hledat agenta…" />
@@ -112,18 +121,18 @@ else
                     {
                         var overdue = IsOverdue(a);
                         var overdueH = OverdueHours(a);
-                        <tr class="@(overdue && overdueH > 48 ? "table-danger" : overdue ? "table-warning" : "")">
+                        <tr class="@(!a.IsActive ? "opacity-50" : overdue && overdueH > 48 ? "table-danger" : overdue ? "table-warning" : "")">
                             <td>
                                 <a href="/agents/@Uri.EscapeDataString(a.AgentName)" class="fw-semibold text-decoration-none">
                                     @a.AgentName
                                 </a>
+                                @if (!a.IsActive)
+                                {
+                                    <span class="badge bg-secondary ms-1 small">off</span>
+                                }
                             </td>
-                            <td>
-                                <span class="badge bg-secondary small">@(a.AgentType ?? "—")</span>
-                            </td>
-                            <td class="text-center">
-                                @StatusBadge(a.Status)
-                            </td>
+                            <td><span class="badge bg-secondary small">@(a.AgentType ?? "—")</span></td>
+                            <td class="text-center">@StatusBadge(a.Status)</td>
                             <td class="text-muted small">
                                 @(a.RunAt.HasValue ? a.RunAt.Value.ToLocalTime().ToString("dd.MM. HH:mm") : "—")
                             </td>
@@ -133,29 +142,19 @@ else
                             <td class="text-center">
                                 @if (overdue)
                                 {
-                                    <span class="badge @(overdueH > 48 ? "bg-danger" : "bg-warning text-dark")">
-                                        +@overdueH h
-                                    </span>
+                                    <span class="badge @(overdueH > 48 ? "bg-danger" : "bg-warning text-dark")">+@overdueH h</span>
                                 }
-                                else
-                                {
-                                    <span class="text-muted small">—</span>
-                                }
+                                else { <span class="text-muted small">—</span> }
                             </td>
                             <td class="text-muted small">
                                 @if (!string.IsNullOrEmpty(a.PromptVersion))
                                 {
-                                    var isLatest = a.PromptVersion == "10.0.0";
-                                    <span class="badge @(isLatest ? "bg-success" : "bg-warning text-dark")">
-                                        @a.PromptVersion
-                                    </span>
+                                    <span class="badge @(a.PromptVersion == "10.0.0" ? "bg-success" : "bg-warning text-dark")">@a.PromptVersion</span>
                                 }
-                                else
-                                {
-                                    <span class="text-muted">—</span>
-                                }
+                                else { <span class="text-muted">—</span> }
                             </td>
-                            <td class="text-muted small" style="max-width:300px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
+                            <td class="text-muted small" style="max-width:300px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"
+                                title="@(a.Highlights ?? a.Summary)">
                                 @(a.Highlights ?? a.Summary ?? "")
                             </td>
                         </tr>
@@ -171,10 +170,15 @@ else
     private List<AgentRow> _agents = new();
     private string _search = string.Empty;
     private string _activeFilter = "Vše";
+    private bool _showInactive = false;
+
+    private System.Threading.Timer? _timer;
+    private int _refreshCountdown = 300;
 
     private readonly string[] _filters = ["Vše", "OK", "Chyba", "Blokováni", "Po termínu", "Bez dat"];
 
     private IEnumerable<AgentRow> FilteredAgents => _agents
+        .Where(a => _showInactive || a.IsActive)
         .Where(a => _activeFilter switch
         {
             "OK"         => a.Status == "ok",
@@ -191,22 +195,41 @@ else
     private void SetFilter(string f) { _activeFilter = f; }
 
     private static bool IsOverdue(AgentRow a) =>
-        a.NextRunAt.HasValue && a.NextRunAt.Value < DateTimeOffset.UtcNow;
+        a.IsActive && a.NextRunAt.HasValue && a.NextRunAt.Value < DateTimeOffset.UtcNow;
 
     private static int OverdueHours(AgentRow a) =>
         a.NextRunAt.HasValue ? (int)(DateTimeOffset.UtcNow - a.NextRunAt.Value).TotalHours : 0;
 
     private static RenderFragment StatusBadge(string? status) => status switch
     {
-        "ok"       => @<span class="badge bg-success">✅ ok</span>,
-        null       => @<span class="badge bg-secondary">??? no data</span>,
+        "ok"                                    => @<span class="badge bg-success">✅ ok</span>,
+        null                                    => @<span class="badge bg-secondary">??? no data</span>,
         var s when s.Contains("schema_blocked") => @<span class="badge bg-warning text-dark">⛔ schema_blocked</span>,
         var s when s.Contains("blocked")        => @<span class="badge bg-warning text-dark">⚠️ blocked</span>,
         var s when s.Contains("error")          => @<span class="badge bg-danger">❌ error</span>,
-        _          => @<span class="badge bg-secondary">@status</span>
+        _                                       => @<span class="badge bg-secondary">@status</span>
     };
 
-    protected override async Task OnInitializedAsync() => await LoadAsync();
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync();
+        _timer = new System.Threading.Timer(async _ =>
+        {
+            _refreshCountdown--;
+            if (_refreshCountdown <= 0)
+            {
+                _refreshCountdown = 300;
+                await LoadAsync();
+            }
+            await InvokeAsync(StateHasChanged);
+        }, null, 1000, 1000);
+    }
+
+    private async Task RefreshNow()
+    {
+        _refreshCountdown = 300;
+        await LoadAsync();
+    }
 
     private async Task LoadAsync()
     {
@@ -215,7 +238,7 @@ else
 
         await using var db = await DbFactory.CreateDbContextAsync();
 
-        var sql = """
+        const string sql = """
             SELECT
               s."AgentName",
               s."AgentType",
@@ -240,6 +263,7 @@ else
             WHERE s."IsDeleted" = false
             ORDER BY
               CASE
+                WHEN s."IsActive" = false THEN 9
                 WHEN r."Status" IS NULL THEN 4
                 WHEN r."Status" LIKE '%error%' THEN 0
                 WHEN r."Status" LIKE '%blocked%' THEN 1
@@ -255,6 +279,8 @@ else
 
         _loading = false;
     }
+
+    public void Dispose() => _timer?.Dispose();
 
     private class AgentRow
     {
