@@ -1,0 +1,268 @@
+@page "/agents/{AgentName}"
+@rendermode InteractiveServer
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+
+@using Microsoft.EntityFrameworkCore
+@inject IDbContextFactory<AppDbContextAiData> DbFactory
+
+<PageTitle>@AgentName — Agenti</PageTitle>
+
+<div class="ui-page-header ui-anim-fade-up">
+    <h3>
+        <a href="/agents" class="text-decoration-none text-muted me-2"><i class="bi bi-arrow-left"></i></a>
+        <i class="bi bi-robot me-2"></i>@AgentName
+    </h3>
+    <button class="btn btn-sm btn-outline-secondary" @onclick="LoadAsync">
+        <i class="bi bi-arrow-clockwise me-1"></i>Obnovit
+    </button>
+</div>
+
+@if (_loading)
+{
+    <div class="ui-anim-fade-up d-flex align-items-center gap-2 mt-3">
+        <div class="spinner-border spinner-border-sm text-primary" role="status"></div>
+        <span class="text-muted">Načítám data…</span>
+    </div>
+}
+else
+{
+    <!-- Schedule info -->
+    @if (_schedule != null)
+    {
+        <div class="row g-3 mb-4 ui-anim-fade-up">
+            <div class="col-6 col-md-3">
+                <div class="ui-panel text-center p-3">
+                    <div class="text-muted small mb-1">Typ</div>
+                    <div class="fw-semibold">@(_schedule.AgentType ?? "—")</div>
+                </div>
+            </div>
+            <div class="col-6 col-md-3">
+                <div class="ui-panel text-center p-3">
+                    <div class="text-muted small mb-1">Interval</div>
+                    <div class="fw-semibold">@(_schedule.IntervalHours ?? "—") h</div>
+                </div>
+            </div>
+            <div class="col-6 col-md-3">
+                <div class="ui-panel text-center p-3">
+                    <div class="text-muted small mb-1">Příští běh</div>
+                    <div class="fw-semibold @(IsOverdue ? "text-danger" : "")">
+                        @(_schedule.NextRunAt.HasValue ? _schedule.NextRunAt.Value.ToLocalTime().ToString("dd.MM. HH:mm") : "—")
+                        @if (IsOverdue)
+                        {
+                            <span class="badge bg-danger ms-1">+@OverdueHours h</span>
+                        }
+                    </div>
+                </div>
+            </div>
+            <div class="col-6 col-md-3">
+                <div class="ui-panel text-center p-3">
+                    <div class="text-muted small mb-1">Prompt</div>
+                    <div class="fw-semibold">
+                        @if (!string.IsNullOrEmpty(_schedule.PromptVersion))
+                        {
+                            var isLatest = _schedule.PromptVersion == "10.0.0";
+                            <span class="badge @(isLatest ? "bg-success" : "bg-warning text-dark")">@_schedule.PromptVersion</span>
+                        }
+                        else { <span class="text-muted">—</span> }
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+
+    <!-- Last run detail -->
+    @if (_runs.Any())
+    {
+        var last = _runs.First();
+
+        @if (!string.IsNullOrEmpty(last.Blockers) || !string.IsNullOrEmpty(last.SchemaGaps))
+        {
+            <div class="ui-panel ui-anim-fade-up mb-3 border border-warning border-opacity-50">
+                <div class="ui-panel-header">
+                    <span class="ui-panel-title text-warning">
+                        <i class="bi bi-exclamation-triangle-fill"></i> Blokátory (poslední běh)
+                    </span>
+                </div>
+                <div class="p-3">
+                    @if (!string.IsNullOrEmpty(last.Blockers))
+                    {
+                        <div class="mb-2"><span class="text-muted small fw-semibold">Blockers:</span><br />@last.Blockers</div>
+                    }
+                    @if (!string.IsNullOrEmpty(last.SchemaGaps))
+                    {
+                        <div class="mb-2"><span class="text-muted small fw-semibold">Schema gaps:</span><br />@last.SchemaGaps</div>
+                    }
+                    @if (!string.IsNullOrEmpty(last.RecommendedNextStep))
+                    {
+                        <div><span class="text-muted small fw-semibold">Doporučení:</span><br />@last.RecommendedNextStep</div>
+                    }
+                </div>
+            </div>
+        }
+    }
+
+    <!-- Run history -->
+    <div class="ui-panel ui-anim-fade-up">
+        <div class="ui-panel-header">
+            <span class="ui-panel-title">
+                <i class="bi bi-clock-history text-accent"></i>
+                Historie běhů (posledních @_runs.Count)
+            </span>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-hover mb-0 align-middle">
+                <thead>
+                    <tr>
+                        <th>Čas</th>
+                        <th class="text-center">Stav</th>
+                        <th>Prompt</th>
+                        <th>Highlights / Summary</th>
+                        <th>Errors</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (!_runs.Any())
+                    {
+                        <tr><td colspan="5" class="text-muted text-center py-4">Žádné záznamy.</td></tr>
+                    }
+                    @foreach (var r in _runs)
+                    {
+                        <tr>
+                            <td class="text-muted small text-nowrap">
+                                @(r.RunAt.HasValue ? r.RunAt.Value.ToLocalTime().ToString("dd.MM.yy HH:mm") : "—")
+                            </td>
+                            <td class="text-center">
+                                @StatusBadge(r.Status)
+                            </td>
+                            <td class="text-muted small">
+                                @(r.PromptVersion ?? "—")
+                            </td>
+                            <td class="text-muted small" style="max-width:350px;">
+                                <div class="text-truncate" title="@(r.Highlights ?? r.Summary)">
+                                    @(r.Highlights ?? r.Summary ?? "—")
+                                </div>
+                            </td>
+                            <td class="small text-danger" style="max-width:250px;">
+                                <div class="text-truncate" title="@r.Errors">
+                                    @(r.Errors ?? "")
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public string AgentName { get; set; } = "";
+
+    private bool _loading = true;
+    private ScheduleRow? _schedule;
+    private List<RunRow> _runs = new();
+
+    private bool IsOverdue => _schedule?.NextRunAt.HasValue == true && _schedule.NextRunAt!.Value < DateTimeOffset.UtcNow;
+    private int OverdueHours => _schedule?.NextRunAt.HasValue == true
+        ? (int)(DateTimeOffset.UtcNow - _schedule!.NextRunAt!.Value).TotalHours : 0;
+
+    private static RenderFragment StatusBadge(string? status) => status switch
+    {
+        "ok"       => @<span class="badge bg-success">✅ ok</span>,
+        null       => @<span class="badge bg-secondary">—</span>,
+        var s when s.Contains("schema_blocked") => @<span class="badge bg-warning text-dark">⛔ schema_blocked</span>,
+        var s when s.Contains("blocked")        => @<span class="badge bg-warning text-dark">⚠️ blocked</span>,
+        var s when s.Contains("error")          => @<span class="badge bg-danger">❌ error</span>,
+        _          => @<span class="badge bg-secondary">@status</span>
+    };
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    protected override async Task OnParametersSetAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        StateHasChanged();
+
+        var name = AgentName;
+        await using var db = await DbFactory.CreateDbContextAsync();
+
+        const string schedSql = """
+            SELECT
+              "AgentName", "AgentType", "IntervalHours", "IsActive",
+              "NextRunAt", "LastRunAt", "PromptVersion", "Status"
+            FROM "AgentSchedules"
+            WHERE "AgentName" = {0} AND "IsDeleted" = false
+            LIMIT 1
+            """;
+
+        _schedule = await db.Database
+            .SqlQueryRaw<ScheduleRow>(schedSql, name)
+            .FirstOrDefaultAsync();
+
+        const string runSql = """
+            SELECT
+              "RunAt", "Status", "Summary", "Highlights",
+              "Blockers", "Errors", "PromptVersion",
+              "RecommendedNextStep",
+              COALESCE("Schema_gaps", '') AS "SchemaGaps"
+            FROM "AgentRunReports"
+            WHERE "AgentName" = {0} AND "IsDeleted" = false
+            ORDER BY "RunAt" DESC
+            LIMIT 20
+            """;
+
+        try
+        {
+            _runs = await db.Database
+                .SqlQueryRaw<RunRow>(runSql, name)
+                .ToListAsync();
+        }
+        catch
+        {
+            // fallback bez Schema_gaps pokud sloupec neexistuje
+            const string runSqlFallback = """
+                SELECT
+                  "RunAt", "Status", "Summary", "Highlights",
+                  "Blockers", "Errors", "PromptVersion",
+                  "RecommendedNextStep",
+                  ''::text AS "SchemaGaps"
+                FROM "AgentRunReports"
+                WHERE "AgentName" = {0} AND "IsDeleted" = false
+                ORDER BY "RunAt" DESC
+                LIMIT 20
+                """;
+            _runs = await db.Database
+                .SqlQueryRaw<RunRow>(runSqlFallback, name)
+                .ToListAsync();
+        }
+
+        _loading = false;
+    }
+
+    private class ScheduleRow
+    {
+        public string AgentName { get; set; } = "";
+        public string? AgentType { get; set; }
+        public string? IntervalHours { get; set; }
+        public bool IsActive { get; set; }
+        public DateTimeOffset? NextRunAt { get; set; }
+        public DateTimeOffset? LastRunAt { get; set; }
+        public string? PromptVersion { get; set; }
+        public string? Status { get; set; }
+    }
+
+    private class RunRow
+    {
+        public DateTimeOffset? RunAt { get; set; }
+        public string? Status { get; set; }
+        public string? Summary { get; set; }
+        public string? Highlights { get; set; }
+        public string? Blockers { get; set; }
+        public string? Errors { get; set; }
+        public string? PromptVersion { get; set; }
+        public string? SchemaGaps { get; set; }
+        public string? RecommendedNextStep { get; set; }
+    }
+}
