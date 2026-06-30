@@ -80,6 +80,14 @@
                 <hr class="nav-divider" />
 
                 <div class="nav-item px-3">
+                    <a class="nav-link nav-link-external" href="https://vo2info.cz/prehled" target="_blank">
+                        <i class="bi bi-grid me-2"></i> vo2info — přehled
+                    </a>
+                </div>
+
+                <hr class="nav-divider" />
+
+                <div class="nav-item px-3">
                     <span class="nav-link text-muted small">
                         <i class="bi bi-person-circle me-1"></i>@context.User.Identity?.Name
                     </span>
@@ -90,6 +98,7 @@
                     </a>
                 </div>
                 <ThemePicker />
+                <LangSwitcher />
                 <UiLibrarySwitcher />
             </Authorized>
             <NotAuthorized>
@@ -114,4 +123,9 @@
         border-color: rgba(255,255,255,.15);
         margin: .5rem 1rem;
     }
+    .nav-link-external {
+        font-size: .8rem;
+        opacity: .55;
+    }
+    .nav-link-external:hover { opacity: .9; }
 </style>

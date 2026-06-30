@@ -2,6 +2,7 @@ using BlazorVO2DataManager;
 using BlazorVO2DataManager.Components;
 using MercenariesAndBeasts.Infrastructure;
 using MercenariesAndBeasts.Infrastructure.Auth;
+using MercenariesAndBeasts.Infrastructure.Localization;
 using Microsoft.AspNetCore.Components.Server;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Identity;
@@ -102,6 +103,7 @@ builder.Services.AddCors();
 builder.Services.AddHealthChecks();
 builder.Services.AddMudServices();
 builder.Services.AddSharedUI(builder.Configuration);
+builder.Services.AddSimpleLocalization();
 builder.Services.AddRadzenComponents();
 builder.Services.AddScoped<UiLibraryService>();
 builder.Services.AddScoped<ToastService>();
@@ -166,6 +168,7 @@ if (!app.Environment.IsProduction())
 
 // UseStaticFiles() odstraněno — MapStaticAssets() dole pokrývá static files s .NET 10 optimalizacemi
 app.UseCors(b => b.AllowAnyOrigin().AllowAnyMethod().AllowAnyHeader());
+app.UseRequestLocalization();
 app.UseSession();
 app.UseAuthentication();
 app.UseAuthorization();
@@ -223,6 +226,7 @@ app.MapGet("/logout", async (HttpContext ctx, Microsoft.AspNetCore.Identity.Sign
 });
 
 app.MapStaticAssets();
+app.MapMabCultureEndpoint();
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
 
