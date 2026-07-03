@@ -1,0 +1,206 @@
+@page "/music-dashboard"
+@rendermode InteractiveServer
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@using Microsoft.EntityFrameworkCore
+@using SharedServices.Models.AiData
+@inject IDbContextFactory<AppDbContextAiData> DbFactory
+
+<PageTitle>Hudební přehled — VO2 Data Manager</PageTitle>
+
+<div class="ui-page-header ui-anim-fade-up">
+    <h3><i class="bi bi-music-note-list me-2"></i>Hudební přehled</h3>
+    <div class="d-flex gap-2">
+        <span class="badge bg-secondary">@_artistCount interpretů</span>
+        <span class="badge bg-secondary">@_albumCount alb</span>
+        <span class="badge bg-secondary">@_songCount skladeb</span>
+    </div>
+</div>
+
+@if (_loading)
+{
+    <PageLoadingSpinner />
+}
+else
+{
+    <div class="row g-3 mb-3 ui-anim-fade-up">
+        <!-- Genre chart -->
+        @if (_genreData.Count > 0)
+        {
+            <div class="col-lg-5">
+                <div class="ui-panel h-100">
+                    <div class="ui-panel-header">
+                        <span class="ui-panel-title">
+                            <i class="bi bi-pie-chart-fill text-accent"></i>
+                            Top žánry interpretů
+                        </span>
+                    </div>
+                    <ApexChart TItem="GenreItem" Options="_chartOptions">
+                        <ApexPointSeries TItem="GenreItem"
+                                         Items="_genreData"
+                                         SeriesType="ApexCharts.SeriesType.Donut"
+                                         XValue="@(e => e.Name)"
+                                         YValue="@(e => e.Count)" />
+                    </ApexChart>
+                </div>
+            </div>
+        }
+
+        <!-- Top artists by album count -->
+        <div class="col-lg-7">
+            <div class="ui-panel h-100">
+                <div class="ui-panel-header">
+                    <span class="ui-panel-title">
+                        <i class="bi bi-bar-chart-fill text-accent"></i>
+                        Top 10 interpretů (alba)
+                    </span>
+                </div>
+                @if (_topArtists.Count > 0)
+                {
+                    <div class="table-responsive">
+                        <table class="table table-hover table-sm align-middle mb-0">
+                            <thead><tr><th>#</th><th>Interpret</th><th class="text-center">Alba</th><th>Aktivní od</th></tr></thead>
+                            <tbody>
+                                @{ int rank = 1; }
+                                @foreach (var a in _topArtists)
+                                {
+                                    <tr>
+                                        <td class="text-muted small">@rank++</td>
+                                        <td>
+                                            <a href="/artists/@a.Artist.GuidId" class="fw-semibold text-decoration-none">@a.Artist.Name</a>
+                                        </td>
+                                        <td class="text-center">
+                                            <span class="badge bg-secondary">@a.AlbumCount</span>
+                                        </td>
+                                        <td class="text-muted small">@(a.Artist.ActiveFromYear?.ToString() ?? "—")</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+                else
+                {
+                    <div class="p-3 text-muted small">Žádná data.</div>
+                }
+            </div>
+        </div>
+    </div>
+
+    <!-- Recently added albums -->
+    <div class="ui-panel ui-anim-fade-up">
+        <div class="ui-panel-header">
+            <span class="ui-panel-title">
+                <i class="bi bi-clock-history text-accent"></i>
+                Naposledy přidaná alba
+            </span>
+            <span class="badge bg-secondary">@_recentAlbums.Count</span>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-hover table-sm align-middle mb-0">
+                <thead><tr><th>Album</th><th>Rok</th><th>Interpret</th><th>Přidáno</th></tr></thead>
+                <tbody>
+                    @foreach (var al in _recentAlbums)
+                    {
+                        <tr>
+                            <td><a href="/albums/@al.GuidId" class="fw-semibold text-decoration-none">@al.Title</a></td>
+                            <td class="text-muted small">@(al.ReleaseYear?.ToString() ?? "—")</td>
+                            <td class="text-muted small">@(al.ArtistDisplay ?? "—")</td>
+                            <td class="text-muted small text-nowrap">@al.CreatedAt?.ToString("dd.MM.yyyy")</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Genre table -->
+    @if (_genreData.Count > 0)
+    {
+        <div class="ui-panel ui-anim-fade-up mt-3">
+            <div class="ui-panel-header">
+                <span class="ui-panel-title">
+                    <i class="bi bi-tag text-accent"></i>
+                    Všechny žánry
+                </span>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-hover table-sm align-middle mb-0">
+                    <thead><tr><th>#</th><th>Žánr</th><th class="text-center">Interpreti</th></tr></thead>
+                    <tbody>
+                        @{ int grank = 1; }
+                        @foreach (var g in _genreData.OrderByDescending(g => g.Count))
+                        {
+                            <tr>
+                                <td class="text-muted small">@grank++</td>
+                                <td class="fw-semibold">@g.Name</td>
+                                <td class="text-center text-muted small">@g.Count</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    }
+}
+
+@code {
+    private bool _loading = true;
+    private int _artistCount;
+    private int _albumCount;
+    private int _songCount;
+
+    private List<GenreItem> _genreData = [];
+    private List<(Artist Artist, int AlbumCount)> _topArtists = [];
+    private List<Album> _recentAlbums = [];
+
+    private readonly ApexChartOptions<GenreItem> _chartOptions = new()
+    {
+        Chart = new Chart { Background = "transparent", Toolbar = new Toolbar { Show = false } },
+        Theme = new ApexCharts.Theme { Mode = Mode.Dark },
+        Legend = new Legend { Position = LegendPosition.Bottom, FontSize = "11px" },
+        Tooltip = new Tooltip { Y = new TooltipY { Formatter = "function(val) { return val + ' interpretů'; }" } }
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        await using var db = await DbFactory.CreateDbContextAsync();
+        _artistCount = await db.Artists.CountAsync();
+        _albumCount  = await db.Albums.CountAsync();
+        _songCount   = await db.Songs.CountAsync();
+
+        var genreLinks = await db.ArtistGenres
+            .Join(db.Genres, ag => ag.GenreGuidId, g => g.GuidId, (ag, g) => new { g.Name, ag.ArtistGuidId })
+            .ToListAsync();
+
+        _genreData = genreLinks
+            .Where(x => x.Name != null)
+            .GroupBy(x => x.Name!)
+            .Select(g => new GenreItem(g.Key, g.Count()))
+            .OrderByDescending(g => g.Count)
+            .Take(15)
+            .ToList();
+
+        var artistAlbumCounts = await db.ArtistAlbums
+            .GroupBy(aa => aa.ArtistGuidId)
+            .Select(g => new { ArtistGuidId = g.Key, Count = g.Count() })
+            .OrderByDescending(x => x.Count)
+            .Take(10)
+            .ToListAsync();
+
+        var topIds = artistAlbumCounts.Select(x => x.ArtistGuidId).ToList();
+        var artists = await db.Artists.Where(a => topIds.Contains(a.GuidId)).ToListAsync();
+        _topArtists = artistAlbumCounts
+            .Select(x => (artists.FirstOrDefault(a => a.GuidId == x.ArtistGuidId)!, x.Count))
+            .Where(x => x.Item1 is not null)
+            .ToList();
+
+        _recentAlbums = await db.Albums
+            .OrderByDescending(al => al.CreatedAt)
+            .Take(20)
+            .ToListAsync();
+
+        _loading = false;
+    }
+
+    private record GenreItem(string Name, int Count);
+}

@@ -1,0 +1,193 @@
+@page "/basketball"
+@rendermode InteractiveServer
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@using Microsoft.EntityFrameworkCore
+@using SharedServices.Models.AiData
+@inject IDbContextFactory<AppDbContextAiData> DbFactory
+
+<PageTitle>Basketbal — VO2 Data Manager</PageTitle>
+
+<div class="ui-page-header ui-anim-fade-up">
+    <h3><i class="bi bi-dribbble me-2"></i>Basketbal</h3>
+</div>
+
+@if (_loading)
+{
+    <PageLoadingSpinner />
+}
+else
+{
+    <div class="d-flex gap-2 mb-3 ui-anim-fade-up">
+        <button class="btn btn-sm @(_tab == 0 ? "btn-primary" : "btn-outline-secondary")" @onclick='() => SetTab(0)'>
+            <i class="bi bi-people me-1"></i>Týmy (@_teams.Count)
+        </button>
+        <button class="btn btn-sm @(_tab == 1 ? "btn-primary" : "btn-outline-secondary")" @onclick='() => SetTab(1)'>
+            <i class="bi bi-diagram-3 me-1"></i>Ligy (@_leagues.Count)
+        </button>
+        <button class="btn btn-sm @(_tab == 2 ? "btn-primary" : "btn-outline-secondary")" @onclick='() => SetTab(2)'>
+            <i class="bi bi-calendar-event me-1"></i>Zápasy (@_matches.Count)
+        </button>
+        <button class="btn btn-sm @(_tab == 3 ? "btn-primary" : "btn-outline-secondary")" @onclick='() => SetTab(3)'>
+            <i class="bi bi-calendar3 me-1"></i>Sezóny (@_seasons.Count)
+        </button>
+    </div>
+
+    @if (_tab == 0)
+    {
+        <div class="ui-panel ui-anim-fade-up">
+            <div class="ui-panel-header">
+                <span class="ui-panel-title"><i class="bi bi-people text-accent"></i> Týmy</span>
+                <span class="badge bg-secondary">@FilteredTeams.Count()</span>
+            </div>
+            <div class="px-3 pt-3">
+                <UiSearchBar @bind-Value="_search" Placeholder="Hledat tým…"
+                             Count="@FilteredTeams.Count()" CountLabel="týmů" />
+            </div>
+            <div class="table-responsive">
+                <table class="table table-hover table-sm align-middle mb-0">
+                    <thead><tr><th>Název</th><th>Norm. název</th><th>Zdroj</th></tr></thead>
+                    <tbody>
+                        @foreach (var t in FilteredTeams.Take(200))
+                        {
+                            <tr>
+                                <td class="fw-semibold">@t.Name</td>
+                                <td class="text-muted small">@t.NormalizedName</td>
+                                <td class="text-muted small">@t.ExternalSource</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    }
+    else if (_tab == 1)
+    {
+        <div class="ui-panel ui-anim-fade-up">
+            <div class="ui-panel-header">
+                <span class="ui-panel-title"><i class="bi bi-diagram-3 text-accent"></i> Ligy</span>
+                <span class="badge bg-secondary">@_leagues.Count</span>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-hover table-sm align-middle mb-0">
+                    <thead><tr><th>Název</th><th>Norm. název</th><th>Zdroj</th></tr></thead>
+                    <tbody>
+                        @foreach (var l in _leagues)
+                        {
+                            <tr>
+                                <td class="fw-semibold">@l.Name</td>
+                                <td class="text-muted small">@l.NormalizedName</td>
+                                <td class="text-muted small">@l.ExternalSource</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    }
+    else if (_tab == 2)
+    {
+        <div class="ui-panel ui-anim-fade-up">
+            <div class="ui-panel-header">
+                <span class="ui-panel-title"><i class="bi bi-calendar-event text-accent"></i> Zápasy</span>
+                <span class="badge bg-secondary">@FilteredMatches.Count()</span>
+            </div>
+            <div class="px-3 pt-3">
+                <UiSearchBar @bind-Value="_search" Placeholder="Hledat tým, ligu…"
+                             Count="@FilteredMatches.Count()" CountLabel="zápasů" />
+            </div>
+            <div class="table-responsive">
+                <table class="table table-hover table-sm align-middle mb-0">
+                    <thead>
+                        <tr>
+                            <th>Datum</th>
+                            <th>Domácí</th>
+                            <th class="text-center">Skóre</th>
+                            <th>Hosté</th>
+                            <th>Liga</th>
+                            <th class="text-center">Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var m in FilteredMatches.Take(200))
+                        {
+                            <tr>
+                                <td class="text-muted small text-nowrap">@(m.MatchDateTimeText ?? m.DateKey ?? "—")</td>
+                                <td class="fw-semibold small">@(m.HomeParticipant ?? "—")</td>
+                                <td class="text-center">
+                                    @if (!string.IsNullOrEmpty(m.Score))
+                                    {
+                                        <span class="badge bg-secondary fw-bold">@m.Score</span>
+                                    }
+                                    else { <span class="text-muted small">vs</span> }
+                                </td>
+                                <td class="fw-semibold small">@(m.AwayParticipant ?? "—")</td>
+                                <td class="text-muted small">@(m.LeagueName ?? "—")</td>
+                                <td class="text-center">
+                                    <span class="badge @(m.Status == "finished" ? "bg-success" : "bg-secondary") small">@(m.Status ?? "—")</span>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    }
+    else
+    {
+        <div class="ui-panel ui-anim-fade-up">
+            <div class="ui-panel-header">
+                <span class="ui-panel-title"><i class="bi bi-calendar3 text-accent"></i> Sezóny</span>
+                <span class="badge bg-secondary">@_seasons.Count</span>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-hover table-sm align-middle mb-0">
+                    <thead><tr><th>Název</th><th>Norm. název</th><th>Zdroj</th></tr></thead>
+                    <tbody>
+                        @foreach (var s in _seasons)
+                        {
+                            <tr>
+                                <td class="fw-semibold">@s.Name</td>
+                                <td class="text-muted small">@s.NormalizedName</td>
+                                <td class="text-muted small">@s.ExternalSource</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    }
+}
+
+@code {
+    private bool _loading = true;
+    private int _tab;
+    private string _search = "";
+
+    private List<BasketballTeam> _teams = [];
+    private List<BasketballLeague> _leagues = [];
+    private List<BasketballMatch> _matches = [];
+    private List<BasketballSeason> _seasons = [];
+
+    private IEnumerable<BasketballTeam> FilteredTeams => string.IsNullOrWhiteSpace(_search)
+        ? _teams
+        : _teams.Where(t => t.Name != null && t.Name.Contains(_search, StringComparison.OrdinalIgnoreCase));
+
+    private IEnumerable<BasketballMatch> FilteredMatches => string.IsNullOrWhiteSpace(_search)
+        ? _matches
+        : _matches.Where(m =>
+            (m.HomeParticipant != null && m.HomeParticipant.Contains(_search, StringComparison.OrdinalIgnoreCase)) ||
+            (m.AwayParticipant != null && m.AwayParticipant.Contains(_search, StringComparison.OrdinalIgnoreCase)) ||
+            (m.LeagueName != null && m.LeagueName.Contains(_search, StringComparison.OrdinalIgnoreCase)));
+
+    protected override async Task OnInitializedAsync()
+    {
+        await using var db = await DbFactory.CreateDbContextAsync();
+        _teams   = await db.BasketballTeams.OrderBy(t => t.Name).ToListAsync();
+        _leagues = await db.BasketballLeagues.OrderBy(l => l.Name).ToListAsync();
+        _matches = await db.BasketballMatches.OrderByDescending(m => m.DateKey).Take(2000).ToListAsync();
+        _seasons = await db.BasketballSeasons.OrderBy(s => s.Name).ToListAsync();
+        _loading = false;
+    }
+
+    private void SetTab(int tab) { _tab = tab; _search = ""; }
+}

@@ -3,6 +3,7 @@ using System;
 using BlazorVO2DataManager;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace BlazorVO2DataManager.Migrations.AiDataIdentityMigrations
 {
     [DbContext(typeof(AppDbContextAiDataIdentity))]
-    partial class AppDbContextAiDataIdentityModelSnapshot : ModelSnapshot
+    [Migration("20260619083733_AddIsWhitelistedAndMustChangePassword")]
+    partial class AddIsWhitelistedAndMustChangePassword
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
