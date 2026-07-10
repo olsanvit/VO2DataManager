@@ -160,7 +160,7 @@ else
 
     protected override async Task OnInitializedAsync()
     {
-        _users = UserManager.Users.OrderByDescending(u => u.IsAdmin).ToList();
+        _users = await UserManager.Users.OrderByDescending(u => u.IsAdmin).ToListAsync();
         _userCount = _users.Count;
 
         await using var db = await DbFactory.CreateDbContextAsync();
