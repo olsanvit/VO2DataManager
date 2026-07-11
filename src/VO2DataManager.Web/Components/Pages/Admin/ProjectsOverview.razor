@@ -1,0 +1,153 @@
+@* AUDIT:OK *@
+@page "/admin/projects"
+@attribute [Authorize(Roles = "Admin")]
+@using Microsoft.AspNetCore.Authorization
+@rendermode InteractiveServer
+
+<PageTitle>Přehled projektů</PageTitle>
+
+<div class="ui-page-header ui-anim-fade-up">
+    <h4 class="m-0"><i class="bi bi-grid-3x3-gap me-2 text-accent"></i>Přehled projektů</h4>
+</div>
+
+<div class="row g-3 ui-anim-fade-up">
+    @foreach (var p in _projects)
+    {
+        <div class="col-12 col-md-6 col-xl-4">
+            <div class="ui-panel h-100">
+                <div class="ui-panel-header d-flex justify-content-between align-items-center">
+                    <span class="ui-panel-title">
+                        <i class="bi @p.Icon text-accent me-1"></i>@p.Name
+                    </span>
+                    <span class="badge @p.StatusClass small">@p.Status</span>
+                </div>
+                <div class="p-3">
+                    <p class="text-muted small mb-2">@p.Description</p>
+                    <div class="d-flex flex-wrap gap-2 mb-3">
+                        @if (!string.IsNullOrEmpty(p.ProdUrl))
+                        {
+                            <a href="@p.ProdUrl" target="_blank" class="btn btn-sm btn-outline-success">
+                                <i class="bi bi-box-arrow-up-right me-1"></i>Produkce
+                            </a>
+                        }
+                        @if (!string.IsNullOrEmpty(p.DevUrl))
+                        {
+                            <a href="@p.DevUrl" target="_blank" class="btn btn-sm btn-outline-warning">
+                                <i class="bi bi-code-slash me-1"></i>Dev
+                            </a>
+                        }
+                        <a href="@p.GitHubUrl" target="_blank" class="btn btn-sm btn-outline-secondary">
+                            <i class="bi bi-github me-1"></i>GitHub
+                        </a>
+                    </div>
+                    @if (p.Notes.Length > 0)
+                    {
+                        <ul class="list-unstyled mb-0">
+                            @foreach (var note in p.Notes)
+                            {
+                                <li class="small text-muted"><i class="bi bi-dot"></i>@note</li>
+                            }
+                        </ul>
+                    }
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    private record ProjectInfo(
+        string Name,
+        string Icon,
+        string Description,
+        string Status,
+        string StatusClass,
+        string GitHubUrl,
+        string ProdUrl = "",
+        string DevUrl = "",
+        params string[] Notes);
+
+    private readonly ProjectInfo[] _projects =
+    [
+        new("VO2DataManager",       "bi-database-fill",    "Hudba, sporty, AI agenti, data management",
+            "Aktivní", "bg-success",
+            "https://github.com/olsanvit/VO2DataManager",
+            "https://vo2datamanager.vo2info.cz",
+            "https://vo2datamanager-dev.vo2info.cz"),
+
+        new("MercenariesAndBeasts", "bi-shield-fill",      "RPG hra — žoldnéři, kobky, bestie, obchod",
+            "Aktivní", "bg-success",
+            "https://github.com/olsanvit/Mercenaries-and-Beasts",
+            "https://mab.vo2info.cz",
+            "https://mab-dev.vo2info.cz",
+            "IDOR fix — LocationFight, DungeonFight"),
+
+        new("SimulateGames",        "bi-controller",       "Simulátor her — IGDB, Top Eleven, Charts",
+            "Aktivní", "bg-success",
+            "https://github.com/olsanvit/SimulateGames",
+            "https://simulategames.vo2info.cz",
+            "https://simulategames-dev.vo2info.cz",
+            "CRITICAL: hardcoded heslo v AllSport.cs",
+            "CRITICAL: SQL injection v GetAllDates()"),
+
+        new("SimulateReal",         "bi-trophy-fill",      "Simulátor reálných zápasů — football, hockey",
+            "Aktivní", "bg-success",
+            "https://github.com/olsanvit/SimulateReal",
+            "https://simulatereal.vo2info.cz",
+            "https://simulatereal-dev.vo2info.cz",
+            "CRITICAL: TEST záznam do DB každou sekundu (RealBackgroundService)"),
+
+        new("UniSportManager",      "bi-people-fill",      "Správa sportovních týmů, ligy, sezóny",
+            "Aktivní", "bg-success",
+            "https://github.com/olsanvit/UniSportManager",
+            "https://unisportmanager.vo2info.cz",
+            "https://unisportmanager-dev.vo2info.cz"),
+
+        new("ScorerApp",            "bi-123",              "Sport scoring — ligy, zápasy, ELO, závody",
+            "Aktivní", "bg-success",
+            "https://github.com/olsanvit/ScorerApp",
+            "https://scorer.vo2info.cz",
+            "https://scorer-dev.vo2info.cz",
+            "PENDING: Admin role check na destruktivní operace"),
+
+        new("ClubManager",          "bi-building",         "Komunikátko + rezervace aut (multi-tenant)",
+            "Vývoj", "bg-warning text-dark",
+            "https://github.com/olsanvit/ClubManager",
+            "",
+            "",
+            "CRITICAL: IDOR — MessageDetail, OrgAdmin",
+            "CRITICAL: Race condition — CarReservationService"),
+
+        new("AgentsPromptsSkills",  "bi-robot",            "AI agenti, prompty a skills správa",
+            "Aktivní", "bg-success",
+            "https://github.com/olsanvit/AgentsPromptsSkills",
+            "https://aps.vo2info.cz",
+            "https://aps-dev.vo2info.cz",
+            "PENDING: IsDeleted filter na AgentsListPage"),
+
+        new("TopElevenStats",       "bi-bar-chart-fill",   "Top Eleven statistiky — hráči, sezóny, trendy",
+            "Aktivní", "bg-success",
+            "https://github.com/olsanvit/TopElevenStats",
+            "https://te.vo2info.cz",
+            "https://te-dev.vo2info.cz",
+            "PENDING: @rendermode na Home.razor (ApexCharts SSR)"),
+
+        new("VINWMIVehicles",       "bi-car-front-fill",   "VIN/WMI lookup, AI popis, SimulateCar",
+            "Aktivní", "bg-success",
+            "https://github.com/olsanvit/VINWMIVehicles",
+            "https://vin.vo2info.cz",
+            "https://vin-dev.vo2info.cz"),
+
+        new("SharedServices",       "bi-boxes",            "Sdílená knihovna — auth, modely, DbContext",
+            "Sdílený", "bg-info",
+            "https://github.com/olsanvit/SharedServices",
+            "", "",
+            "Submodule — aktualizovat před každým commitem"),
+
+        new("vo2-ai-agent-governance", "bi-gear-fill",     "Governance — audit generátor, deploy skripty",
+            "Infrastruktura", "bg-secondary",
+            "https://github.com/olsanvit/vo2-ai-agent-governance",
+            "", "",
+            "Audit report: /admin/audit"),
+    ];
+}
