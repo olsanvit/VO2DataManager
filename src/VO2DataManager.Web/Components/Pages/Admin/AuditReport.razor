@@ -1,0 +1,10 @@
+@* AUDIT:OK *@
+@page "/admin/audit"
+@attribute [Authorize(Roles = "Admin")]
+@using Microsoft.AspNetCore.Authorization
+
+<PageTitle>Audit projektů</PageTitle>
+
+<iframe src="/audit-report.html"
+        style="width:100%;height:calc(100vh - 80px);border:none;display:block;"
+        title="Audit projektů"></iframe>
