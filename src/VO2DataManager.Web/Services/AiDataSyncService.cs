@@ -43,6 +43,7 @@ public class AiDataSyncService
     /// reported as warnings in the application log together with a scaffold command hint.
     /// </summary>
     /// <param name="ct">Cancellation token forwarded to all async database operations.</param>
+    // AUDIT:PENDING|Kritický|Connection string incl. heslo logován jako Warning; bez try-catch; raw SQL PostgreSQL-only
     public async Task RunDailyAsync(CancellationToken ct = default)
     {
         _log.LogInformation("AiDataSyncService: spuštěn schema check.");
