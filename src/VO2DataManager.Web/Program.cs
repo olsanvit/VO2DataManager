@@ -228,7 +228,10 @@ app.MapGet("/logout", async (HttpContext ctx, Microsoft.AspNetCore.Identity.Sign
 app.MapStaticAssets();
 app.MapMabCultureEndpoint();
 app.MapRazorComponents<App>()
-    .AddInteractiveServerRenderMode();
+    .AddInteractiveServerRenderMode()
+    .AddAdditionalAssemblies(
+        // Login + Register Blazor komponenty z SharedServices
+        typeof(MercenariesAndBeasts.Infrastructure.Components.Account.Login).Assembly);
 
 // ── Migrate Identity DB + Seed admin ─────────────────────────────────────
 try
