@@ -241,6 +241,15 @@ try
 }
 catch (Exception ex) { Log.Warning(ex, "DB migration/seed skipped — DB not available"); }
 
+// ── AiData schema — EnsureCreated vytvoří tabulky (Artists, Albums…) pokud chybí ──
+try
+{
+    using var scope = app.Services.CreateScope();
+    var db = scope.ServiceProvider.GetRequiredService<AppDbContextAiData>();
+    await db.Database.EnsureCreatedAsync();
+}
+catch (Exception ex) { Log.Warning(ex, "AiData EnsureCreated skipped — DB not available"); }
+
 
 // Seed role a admin účet
 await AdminUserSeeder.SeedAsync(app.Services, app.Configuration);
