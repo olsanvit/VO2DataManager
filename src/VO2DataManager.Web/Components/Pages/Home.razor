@@ -27,76 +27,80 @@ else
         <span class="badge bg-secondary text-muted small">VO2 Data Manager</span>
     </div>
 
-    <!-- Stats row -->
-    <div class="row g-3 mb-4 ui-anim-fade-up">
-        <div class="col-6 col-lg-4">
-            <UiStats Label="Interpreti"
-                     Value="@_artistCount.ToString("N0")"
-                     Icon="bi-music-note-beamed"
-                     IconBgClass="icon-accent" />
+    @if (_musicModuleAvailable)
+    {
+        <!-- Stats row -->
+        <div class="row g-3 mb-4 ui-anim-fade-up">
+            <div class="col-6 col-lg-4">
+                <UiStats Label="Interpreti"
+                         Value="@_artistCount.ToString("N0")"
+                         Icon="bi-music-note-beamed"
+                         IconBgClass="icon-accent" />
+            </div>
+            <div class="col-6 col-lg-4">
+                <UiStats Label="Alba"
+                         Value="@_albumCount.ToString("N0")"
+                         Icon="bi-vinyl"
+                         IconBgClass="icon-emerald" />
+            </div>
+            <div class="col-6 col-lg-4">
+                <UiStats Label="Skladby"
+                         Value="@_songCount.ToString("N0")"
+                         Icon="bi-music-note"
+                         IconBgClass="icon-amber" />
+            </div>
         </div>
-        <div class="col-6 col-lg-4">
-            <UiStats Label="Alba"
-                     Value="@_albumCount.ToString("N0")"
-                     Icon="bi-vinyl"
-                     IconBgClass="icon-emerald" />
-        </div>
-        <div class="col-6 col-lg-4">
-            <UiStats Label="Skladby"
-                     Value="@_songCount.ToString("N0")"
-                     Icon="bi-music-note"
-                     IconBgClass="icon-amber" />
-        </div>
-    </div>
 
-    <!-- Donut chart + quick links -->
-    <div class="row g-3 mb-4">
-        @if (_total > 0)
-        {
-            <div class="col-lg-5">
-                <div class="ui-panel ui-anim-fade-up">
-                    <div class="ui-panel-header">
-                        <span class="ui-panel-title">
-                            <i class="bi bi-pie-chart-fill text-accent"></i>
-                            Poměr obsahu
-                        </span>
+        <!-- Donut chart + quick links -->
+        <div class="row g-3 mb-4">
+            @if (_total > 0)
+            {
+                <div class="col-lg-5">
+                    <div class="ui-panel ui-anim-fade-up">
+                        <div class="ui-panel-header">
+                            <span class="ui-panel-title">
+                                <i class="bi bi-pie-chart-fill text-accent"></i>
+                                Poměr obsahu
+                            </span>
+                        </div>
+                        <ApexChart TItem="ChartItem" Options="_chartOptions">
+                            <ApexPointSeries TItem="ChartItem"
+                                             Items="_chartData"
+                                             SeriesType="ApexCharts.SeriesType.Donut"
+                                             XValue="@(e => e.Label)"
+                                             YValue="@(e => e.Value)" />
+                        </ApexChart>
                     </div>
-                    <ApexChart TItem="ChartItem" Options="_chartOptions">
-                        <ApexPointSeries TItem="ChartItem"
-                                         Items="_chartData"
-                                         SeriesType="ApexCharts.SeriesType.Donut"
-                                         XValue="@(e => e.Label)"
-                                         YValue="@(e => e.Value)" />
-                    </ApexChart>
+                </div>
+            }
+
+            <!-- Quick links -->
+            <div class="col-lg-7">
+                <div class="d-flex flex-column gap-3 ui-anim-fade-up">
+                    <QuickLinkCard Href="/artists"
+                                   Icon="bi-music-note-beamed"
+                                   Title="Interpreti"
+                                   Description="Správa interpretů a umělců"
+                                   IconClass="icon-accent" />
+                    <QuickLinkCard Href="/albums"
+                                   Icon="bi-vinyl"
+                                   Title="Alba"
+                                   Description="Správa hudebních alb"
+                                   IconClass="icon-emerald" />
+                    <QuickLinkCard Href="/songs"
+                                   Icon="bi-music-note"
+                                   Title="Skladby"
+                                   Description="Správa skladeb a stop"
+                                   IconClass="icon-amber" />
                 </div>
             </div>
-        }
-
-        <!-- Quick links -->
-        <div class="col-lg-7">
-            <div class="d-flex flex-column gap-3 ui-anim-fade-up">
-                <QuickLinkCard Href="/artists"
-                               Icon="bi-music-note-beamed"
-                               Title="Interpreti"
-                               Description="Správa interpretů a umělců"
-                               IconClass="icon-accent" />
-                <QuickLinkCard Href="/albums"
-                               Icon="bi-vinyl"
-                               Title="Alba"
-                               Description="Správa hudebních alb"
-                               IconClass="icon-emerald" />
-                <QuickLinkCard Href="/songs"
-                               Icon="bi-music-note"
-                               Title="Skladby"
-                               Description="Správa skladeb a stop"
-                               IconClass="icon-amber" />
-            </div>
         </div>
-    </div>
+    }
 }
 
 @code {
     private bool _loading = true;
+    private bool _musicModuleAvailable = true;
     private int _artistCount;
     private int _albumCount;
     private int _songCount;
@@ -120,18 +124,27 @@ else
 
     protected override async Task OnInitializedAsync()
     {
-        await using var db = await DbFactory.CreateDbContextAsync();
-        _artistCount = await db.Artists.CountAsync();
-        _albumCount  = await db.Albums.CountAsync();
-        _songCount   = await db.Songs.CountAsync();
-        _total = _artistCount + _albumCount + _songCount;
-
-        _chartData = new List<ChartItem>
+        try
         {
-            new() { Label = "Interpreti", Value = _artistCount },
-            new() { Label = "Alba",       Value = _albumCount  },
-            new() { Label = "Skladby",    Value = _songCount   },
-        };
+            await using var db = await DbFactory.CreateDbContextAsync();
+            _artistCount = await db.Artists.CountAsync();
+            _albumCount  = await db.Albums.CountAsync();
+            _songCount   = await db.Songs.CountAsync();
+            _total = _artistCount + _albumCount + _songCount;
+
+            _chartData = new List<ChartItem>
+            {
+                new() { Label = "Interpreti", Value = _artistCount },
+                new() { Label = "Alba",       Value = _albumCount  },
+                new() { Label = "Skladby",    Value = _songCount   },
+            };
+        }
+        catch (Npgsql.PostgresException)
+        {
+            // Hudební tabulky (Artists/Albums/Songs) v produkční DB zatím neexistují.
+            _musicModuleAvailable = false;
+            _total = 0;
+        }
 
         _loading = false;
     }
