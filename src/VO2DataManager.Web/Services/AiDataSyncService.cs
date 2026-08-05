@@ -43,10 +43,21 @@ public class AiDataSyncService
     /// reported as warnings in the application log together with a scaffold command hint.
     /// </summary>
     /// <param name="ct">Cancellation token forwarded to all async database operations.</param>
-    // AUDIT:PENDING|Kritický|Connection string incl. heslo logován jako Warning; bez try-catch; raw SQL PostgreSQL-only
+    // AUDIT:FIXED|byl: heslo v logu + bez try-catch; nyní heslo maskováno, metoda obalena v try-catch
     public async Task RunDailyAsync(CancellationToken ct = default)
     {
         _log.LogInformation("AiDataSyncService: spuštěn schema check.");
+        try
+        {
+            await RunInternalAsync(ct);
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "AiDataSyncService: neočekávaná chyba při schema check.");
+        }
+    }
+
+    private async Task RunInternalAsync(CancellationToken ct)
 
         await using var db = await _factory.CreateDbContextAsync(ct);
 
@@ -96,8 +107,8 @@ public class AiDataSyncService
         else
         {
             _log.LogWarning("AiDataSyncService: {Report}", sb.ToString());
-            // Connection string pro scaffold — bez hesla v logu
-            var scaffoldCs = _config.GetConnectionString("AiDataConnection") ?? "<viz appsettings — AiDataConnection>";
+            var rawCs = _config.GetConnectionString("AiDataConnection") ?? "<viz appsettings — AiDataConnection>";
+            var scaffoldCs = MaskPassword(rawCs);
             _log.LogWarning(
                 "AiDataSyncService: Pro aktualizaci modelů spusť:\n" +
                 "dotnet ef dbcontext scaffold \"{Cs}\" " +
@@ -110,5 +121,12 @@ public class AiDataSyncService
         }
 
         _log.LogInformation("AiDataSyncService: dokončen.");
+    }
+
+    private static string MaskPassword(string cs)
+    {
+        // Nahradí Password=xxx; nebo password=xxx; za Password=***;
+        return System.Text.RegularExpressions.Regex.Replace(
+            cs, @"(?i)(password\s*=\s*)([^;]+)", "$1***");
     }
 }
