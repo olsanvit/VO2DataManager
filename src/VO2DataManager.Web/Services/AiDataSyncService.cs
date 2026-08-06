@@ -58,7 +58,7 @@ public class AiDataSyncService
     }
 
     private async Task RunInternalAsync(CancellationToken ct)
-
+    {
         await using var db = await _factory.CreateDbContextAsync(ct);
 
         // Tabulky evidované v DbContextu
