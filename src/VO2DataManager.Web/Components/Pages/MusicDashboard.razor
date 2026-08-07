@@ -164,15 +164,33 @@ else
     protected override async Task OnInitializedAsync()
     {
         await using var db = await DbFactory.CreateDbContextAsync();
-        _artistCount = await db.Artists.CountAsync();
-        _albumCount  = await db.Albums.CountAsync();
-        _songCount   = await db.Songs.CountAsync();
 
-        var genreLinks = await db.ArtistGenres
+        // Paralelní dotazy — counts + data nezávislá na sobě
+        var tArtistCount = db.Artists.CountAsync();
+        var tAlbumCount  = db.Albums.CountAsync();
+        var tSongCount   = db.Songs.CountAsync();
+        var tGenreLinks  = db.ArtistGenres
             .Join(db.Genres, ag => ag.GenreGuidId, g => g.GuidId, (ag, g) => new { g.Name, ag.ArtistGuidId })
             .ToListAsync();
+        var tArtistAlbumCounts = db.ArtistAlbums
+            .GroupBy(aa => aa.ArtistGuidId)
+            .Select(g => new { ArtistGuidId = g.Key, Count = g.Count() })
+            .OrderByDescending(x => x.Count)
+            .Take(10)
+            .ToListAsync();
+        var tRecentAlbums = db.Albums
+            .OrderByDescending(al => al.CreatedAt)
+            .Take(20)
+            .ToListAsync();
 
-        _genreData = genreLinks
+        await Task.WhenAll(tArtistCount, tAlbumCount, tSongCount, tGenreLinks, tArtistAlbumCounts, tRecentAlbums);
+
+        _artistCount = tArtistCount.Result;
+        _albumCount  = tAlbumCount.Result;
+        _songCount   = tSongCount.Result;
+        _recentAlbums = tRecentAlbums.Result;
+
+        _genreData = tGenreLinks.Result
             .Where(x => x.Name != null)
             .GroupBy(x => x.Name!)
             .Select(g => new GenreItem(g.Key, g.Count()))
@@ -180,24 +198,13 @@ else
             .Take(15)
             .ToList();
 
-        var artistAlbumCounts = await db.ArtistAlbums
-            .GroupBy(aa => aa.ArtistGuidId)
-            .Select(g => new { ArtistGuidId = g.Key, Count = g.Count() })
-            .OrderByDescending(x => x.Count)
-            .Take(10)
-            .ToListAsync();
-
+        var artistAlbumCounts = tArtistAlbumCounts.Result;
         var topIds = artistAlbumCounts.Select(x => x.ArtistGuidId).ToList();
         var artists = await db.Artists.Where(a => topIds.Contains(a.GuidId)).ToListAsync();
         _topArtists = artistAlbumCounts
             .Select(x => (artists.FirstOrDefault(a => a.GuidId == x.ArtistGuidId)!, x.Count))
             .Where(x => x.Item1 is not null)
             .ToList();
-
-        _recentAlbums = await db.Albums
-            .OrderByDescending(al => al.CreatedAt)
-            .Take(20)
-            .ToListAsync();
 
         _loading = false;
     }
