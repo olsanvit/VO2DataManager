@@ -10,3 +10,8 @@ Logs/
 ## OS
 .DS_Store
 Thumbs.db
+
+## Secrets — nikdy neverzovat (repo je public)
+appsettings.Production.json
+appsettings.Development.json
+appsettings.*.Local.json
