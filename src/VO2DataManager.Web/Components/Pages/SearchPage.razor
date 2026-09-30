@@ -4,7 +4,6 @@
 @attribute [Microsoft.AspNetCore.Authorization.Authorize]
 @implements IDisposable
 @using Microsoft.EntityFrameworkCore
-@using SharedServices.Models.AiData
 @inject IDbContextFactory<AppDbContextAiData> DbFactory
 
 <PageTitle>Hledání — VO2 Data Manager</PageTitle>
@@ -16,15 +15,15 @@
 <div class="ui-panel ui-anim-fade-up mb-3">
     <div class="p-3 d-flex gap-3 align-items-end flex-wrap">
         <div style="flex:1;min-width:200px">
-            <input class="form-control" placeholder="Hledat interpret, album, skladbu, tým…"
+            <input class="form-control" placeholder="Hledat tým, ligu, hráče, agenta…"
                    @bind="_query" @bind:event="oninput" @bind:after="OnQueryChange" />
         </div>
         <div class="d-flex gap-2 flex-wrap">
-            @foreach (var cat in _categories)
+            @foreach (var s in _sources)
             {
-                <button class="btn btn-sm @(_activeCategories.Contains(cat.Key) ? "btn-primary" : "btn-outline-secondary")"
-                        @onclick="() => ToggleCategory(cat.Key)">
-                    @cat.Icon @cat.Label
+                <button class="btn btn-sm @(_active.Contains(s.Key) ? "btn-primary" : "btn-outline-secondary")"
+                        @onclick="() => ToggleSource(s.Key)">
+                    @s.Icon @s.Label
                 </button>
             }
         </div>
@@ -40,7 +39,17 @@
 }
 else if (!string.IsNullOrWhiteSpace(_query) && _query.Length >= 2)
 {
-    var total = _artistResults.Count + _albumResults.Count + _songResults.Count + _amfTeamResults.Count + _bkTeamResults.Count;
+    var total = _results.Sum(r => r.Value.Count);
+
+    @if (_unavailable.Count > 0)
+    {
+        <div class="alert alert-warning py-2 small ui-anim-fade-up">
+            <i class="bi bi-exclamation-triangle me-1"></i>
+            Nedostupné kategorie (tabulka v AIData zatím neexistuje nebo má jiné schéma):
+            @string.Join(", ", _unavailable)
+        </div>
+    }
+
     @if (total == 0)
     {
         <div class="ui-panel ui-anim-fade-up text-center p-4 text-muted">Nic nenalezeno pro „@_query".</div>
@@ -49,114 +58,37 @@ else if (!string.IsNullOrWhiteSpace(_query) && _query.Length >= 2)
     {
         <div class="text-muted small mb-3">Nalezeno @total výsledků</div>
 
-        @if (_artistResults.Count > 0 && _activeCategories.Contains("artists"))
+        @foreach (var s in _sources.Where(s => _active.Contains(s.Key)
+                                            && _results.ContainsKey(s.Key)
+                                            && _results[s.Key].Count > 0))
         {
+            var rows = _results[s.Key];
             <div class="ui-panel ui-anim-fade-up mb-3">
                 <div class="ui-panel-header">
-                    <span class="ui-panel-title"><i class="bi bi-music-note-beamed text-accent"></i> Interpreti</span>
-                    <span class="badge bg-secondary">@_artistResults.Count</span>
+                    <span class="ui-panel-title">@s.Icon @s.Label</span>
+                    <span class="badge bg-secondary">@rows.Count</span>
                 </div>
                 <div class="table-responsive">
                     <table class="table table-hover table-sm mb-0">
                         <tbody>
-                            @foreach (var a in _artistResults.Take(10))
+                            @foreach (var r in rows)
                             {
                                 <tr>
-                                    <td><a href="/artists/@a.GuidId" class="fw-semibold text-decoration-none">@a.Name</a></td>
-                                    <td class="text-muted small">@(a.ActiveFromYear?.ToString() ?? "") — @(a.ActiveToYear?.ToString() ?? "dosud")</td>
-                                </tr>
-                            }
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        }
-
-        @if (_albumResults.Count > 0 && _activeCategories.Contains("albums"))
-        {
-            <div class="ui-panel ui-anim-fade-up mb-3">
-                <div class="ui-panel-header">
-                    <span class="ui-panel-title"><i class="bi bi-vinyl text-accent"></i> Alba</span>
-                    <span class="badge bg-secondary">@_albumResults.Count</span>
-                </div>
-                <div class="table-responsive">
-                    <table class="table table-hover table-sm mb-0">
-                        <tbody>
-                            @foreach (var al in _albumResults.Take(10))
-                            {
-                                <tr>
-                                    <td><a href="/albums/@al.GuidId" class="fw-semibold text-decoration-none">@al.Title</a></td>
-                                    <td class="text-muted small">@(al.ReleaseYear?.ToString() ?? "—")</td>
-                                    <td class="text-muted small">@(al.ArtistDisplay ?? "—")</td>
-                                </tr>
-                            }
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        }
-
-        @if (_songResults.Count > 0 && _activeCategories.Contains("songs"))
-        {
-            <div class="ui-panel ui-anim-fade-up mb-3">
-                <div class="ui-panel-header">
-                    <span class="ui-panel-title"><i class="bi bi-music-note text-accent"></i> Skladby</span>
-                    <span class="badge bg-secondary">@_songResults.Count</span>
-                </div>
-                <div class="table-responsive">
-                    <table class="table table-hover table-sm mb-0">
-                        <tbody>
-                            @foreach (var s in _songResults.Take(10))
-                            {
-                                <tr>
-                                    <td><a href="/songs/@s.GuidId" class="fw-semibold text-decoration-none">@s.Title</a></td>
-                                    <td class="text-muted small">@(s.DurationSeconds.HasValue ? $"{s.DurationSeconds/60}:{s.DurationSeconds%60:D2}" : "—")</td>
-                                </tr>
-                            }
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        }
-
-        @if (_amfTeamResults.Count > 0 && _activeCategories.Contains("amf"))
-        {
-            <div class="ui-panel ui-anim-fade-up mb-3">
-                <div class="ui-panel-header">
-                    <span class="ui-panel-title">🏈 Am. fotbal — týmy</span>
-                    <span class="badge bg-secondary">@_amfTeamResults.Count</span>
-                </div>
-                <div class="table-responsive">
-                    <table class="table table-hover table-sm mb-0">
-                        <tbody>
-                            @foreach (var t in _amfTeamResults.Take(10))
-                            {
-                                <tr>
-                                    <td class="fw-semibold">@t.Name</td>
-                                    <td class="text-muted small">@t.ExternalSource</td>
-                                </tr>
-                            }
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        }
-
-        @if (_bkTeamResults.Count > 0 && _activeCategories.Contains("basketball"))
-        {
-            <div class="ui-panel ui-anim-fade-up mb-3">
-                <div class="ui-panel-header">
-                    <span class="ui-panel-title">🏀 Basketbal — týmy</span>
-                    <span class="badge bg-secondary">@_bkTeamResults.Count</span>
-                </div>
-                <div class="table-responsive">
-                    <table class="table table-hover table-sm mb-0">
-                        <tbody>
-                            @foreach (var t in _bkTeamResults.Take(10))
-                            {
-                                <tr>
-                                    <td class="fw-semibold">@t.Name</td>
-                                    <td class="text-muted small">@t.ExternalSource</td>
+                                    <td class="fw-semibold">
+                                        @if (s.LinkPrefix is not null)
+                                        {
+                                            <a href="@(s.LinkPrefix + Uri.EscapeDataString(r.Name ?? ""))"
+                                               class="text-decoration-none">@Display(r.Name)</a>
+                                        }
+                                        else
+                                        {
+                                            @Display(r.Name)
+                                        }
+                                    </td>
+                                    <td class="text-muted small">@(r.Detail ?? "—")</td>
+                                    <td class="text-muted small text-nowrap">
+                                        @(r.UpdatedAt?.ToLocalTime().ToString("dd.MM.yyyy") ?? "")
+                                    </td>
                                 </tr>
                             }
                         </tbody>
@@ -172,37 +104,42 @@ else if (!string.IsNullOrWhiteSpace(_query))
 }
 
 @code {
+    // Přepsáno 2026-09-12: původní verze hledala přes EF entity Artist/Album/Song a AmericanFootball*,
+    // které míří na neexistující tabulky → stránka spadla na prvním dotazu. Teď raw SQL nad reálným
+    // schématem a každá kategorie ve vlastním try/catch, takže chybějící tabulka shodí jen svou sekci.
+
     private string _query = "";
     private bool _searching;
-    private HashSet<string> _activeCategories = ["artists", "albums", "songs", "amf", "basketball"];
+    private System.Timers.Timer? _debounce;
 
-    private List<Artist> _artistResults = [];
-    private List<Album> _albumResults = [];
-    private List<Song> _songResults = [];
-    private List<AmericanFootballTeam> _amfTeamResults = [];
-    private List<BasketballTeam> _bkTeamResults = [];
+    private readonly Dictionary<string, List<Row>> _results = new();
+    private readonly List<string> _unavailable = new();
 
-    private readonly record struct Category(string Key, string Label, string Icon);
-    private readonly Category[] _categories =
+    /// <summary>Zdroj hledání. NameExpr/DetailExpr jsou konstanty z kódu — nikdy uživatelský vstup.</summary>
+    private sealed record Source(string Key, string Label, string Icon, string Table,
+                                 string NameExpr, string DetailExpr, string? LinkPrefix = null);
+
+    // Sporty mají nekonzistentní schéma (AmFootball* nemá Name), proto se výraz pro název konfiguruje per zdroj.
+    private readonly Source[] _sources =
     [
-        new("artists", "Interpreti", "🎤"),
-        new("albums", "Alba", "💿"),
-        new("songs", "Skladby", "🎵"),
-        new("amf", "Am. fotbal", "🏈"),
-        new("basketball", "Basketbal", "🏀"),
+        new("agents",     "Agenti",           "🤖", "AgentSchedules",   "\"AgentName\"",      "COALESCE(\"AgentType\",'')", "/agents/"),
+        new("bk_teams",   "Basketbal — týmy", "🏀", "BasketballTeams",  "\"Name\"",           "COALESCE(\"Country\",'')"),
+        new("bk_leagues", "Basketbal — ligy", "🏆", "BasketballLeagues","\"Name\"",           "COALESCE(\"Country\",'')"),
+        new("bk_players", "Basketbal — hráči","⛹️", "BasketballPlayers","\"Name\"",           "COALESCE(\"Country\",'')"),
+        new("amf_teams",  "Am. fotbal — týmy","🏈", "AmFootballTeams",  "\"NormalizedName\"", "COALESCE(\"SourceName\",'')"),
+        new("fb_teams",   "Fotbal — týmy",    "⚽", "FootballTeams",    "\"Name\"",           "COALESCE(\"Country\",'')"),
     ];
 
-    private System.Timers.Timer? _debounce;
+    private HashSet<string> _active = [];
+
+    // Ve výchozím stavu hledáme všude; konstruktor komponenty se v Razoru nepoužívá.
+    protected override void OnInitialized() => _active = _sources.Select(s => s.Key).ToHashSet();
 
     private void OnQueryChange()
     {
         _debounce?.Dispose();
-        _debounce = new System.Timers.Timer(400);
-        _debounce.Elapsed += async (_, _) =>
-        {
-            _debounce?.Dispose();
-            await InvokeAsync(SearchAsync);
-        };
+        _debounce = new System.Timers.Timer(400) { AutoReset = false };
+        _debounce.Elapsed += async (_, _) => await InvokeAsync(SearchAsync);
         _debounce.Start();
     }
 
@@ -210,37 +147,62 @@ else if (!string.IsNullOrWhiteSpace(_query))
     {
         if (string.IsNullOrWhiteSpace(_query) || _query.Length < 2)
         {
-            _artistResults = []; _albumResults = []; _songResults = [];
-            _amfTeamResults = []; _bkTeamResults = [];
+            _results.Clear();
+            _unavailable.Clear();
             StateHasChanged();
             return;
         }
+
         _searching = true;
         StateHasChanged();
 
-        var q = _query;
-        await using var db = await DbFactory.CreateDbContextAsync();
+        var pattern = $"%{_query}%";
+        _results.Clear();
+        _unavailable.Clear();
 
-        if (_activeCategories.Contains("artists"))
-            _artistResults = await db.Artists.Where(a => a.Name != null && EF.Functions.ILike(a.Name, $"%{q}%")).Take(20).ToListAsync();
-        if (_activeCategories.Contains("albums"))
-            _albumResults = await db.Albums.Where(al => al.Title != null && EF.Functions.ILike(al.Title, $"%{q}%")).Take(20).ToListAsync();
-        if (_activeCategories.Contains("songs"))
-            _songResults = await db.Songs.Where(s => s.Title != null && EF.Functions.ILike(s.Title, $"%{q}%")).Take(20).ToListAsync();
-        if (_activeCategories.Contains("amf"))
-            _amfTeamResults = await db.AmericanFootballTeams.Where(t => t.Name != null && EF.Functions.ILike(t.Name, $"%{q}%")).Take(20).ToListAsync();
-        if (_activeCategories.Contains("basketball"))
-            _bkTeamResults = await db.BasketballTeams.Where(t => t.Name != null && EF.Functions.ILike(t.Name, $"%{q}%")).Take(20).ToListAsync();
+        foreach (var s in _sources.Where(s => _active.Contains(s.Key)))
+        {
+            // Agentní tabulky vznikají postupně — jedna chybějící nesmí shodit celé hledání.
+            try
+            {
+                await using var db = await DbFactory.CreateDbContextAsync();
+                var sql = $$"""
+                    SELECT {{s.NameExpr}} AS "Name", {{s.DetailExpr}} AS "Detail", "UpdatedAt"
+                    FROM "{{s.Table}}"
+                    WHERE "IsDeleted" = false AND {{s.NameExpr}} ILIKE {0}
+                    ORDER BY {{s.NameExpr}}
+                    LIMIT 20
+                    """;
+                _results[s.Key] = await db.Database.SqlQueryRaw<Row>(sql, pattern).ToListAsync();
+            }
+            catch
+            {
+                _unavailable.Add(s.Label);
+            }
+        }
 
         _searching = false;
         StateHasChanged();
     }
 
-    private void ToggleCategory(string key)
+    private void ToggleSource(string key)
     {
-        if (_activeCategories.Contains(key)) _activeCategories.Remove(key);
-        else _activeCategories.Add(key);
+        if (!_active.Remove(key)) _active.Add(key);
     }
 
+    // AmFootball* drží názvy jen malými písmeny (normalizované) — pro zobrazení je zkulturníme.
+    private static string Display(string? name) => string.IsNullOrWhiteSpace(name)
+        ? "—"
+        : (name == name.ToLowerInvariant()
+            ? System.Globalization.CultureInfo.InvariantCulture.TextInfo.ToTitleCase(name)
+            : name);
+
     public void Dispose() => _debounce?.Dispose();
+
+    private class Row
+    {
+        public string? Name { get; set; }
+        public string? Detail { get; set; }
+        public DateTimeOffset? UpdatedAt { get; set; }
+    }
 }

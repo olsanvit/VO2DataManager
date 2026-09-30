@@ -1,0 +1,242 @@
+@page "/sport/{Sport}"
+@rendermode InteractiveServer
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@using Microsoft.EntityFrameworkCore
+@inject IDbContextFactory<AppDbContextAiData> DbFactory
+
+<PageTitle>@Humanize(Sport) — VO2 Data Manager</PageTitle>
+
+<div class="ui-page-header ui-anim-fade-up">
+    <h3>
+        <a href="/sports" class="text-decoration-none text-muted me-2"><i class="bi bi-arrow-left"></i></a>
+        <i class="bi bi-trophy me-2"></i>@Humanize(Sport)
+    </h3>
+</div>
+
+@if (_invalidSport)
+{
+    <div class="ui-panel ui-anim-fade-up text-center p-4" style="max-width:520px;margin:60px auto;">
+        <div style="font-size:2.5rem;margin-bottom:.5rem;">🔍</div>
+        <h5>Sport nenalezen</h5>
+        <p class="text-muted small">Pro „@Sport" neexistuje v AIData tabulka týmů.</p>
+        <a href="/sports" class="btn btn-primary btn-sm">Zpět na seznam sportů</a>
+    </div>
+}
+else if (_loading)
+{
+    <PageLoadingSpinner />
+}
+else
+{
+    <div class="d-flex gap-2 mb-3 ui-anim-fade-up flex-wrap">
+        @foreach (var t in _tabs)
+        {
+            <button class="btn btn-sm @(_tab == t.Key ? "btn-primary" : "btn-outline-secondary")"
+                    @onclick="() => SetTab(t.Key)">
+                <i class="bi @t.Icon me-1"></i>@t.Label (@(_data.TryGetValue(t.Key, out var d) ? d.Count : 0))
+            </button>
+        }
+    </div>
+
+    @if (_unavailable.Contains(_tab))
+    {
+        <div class="alert alert-warning ui-anim-fade-up">
+            <i class="bi bi-exclamation-triangle me-1"></i>
+            Tabulka pro tuto sekci v AIData neexistuje nebo je nedostupná.
+        </div>
+    }
+
+    <div class="ui-panel ui-anim-fade-up">
+        <div class="ui-panel-header">
+            <span class="ui-panel-title">
+                <i class="bi @_tabs.First(t => t.Key == _tab).Icon text-accent"></i>
+                @_tabs.First(t => t.Key == _tab).Label
+            </span>
+            <span class="badge bg-secondary">@Rows.Count()</span>
+        </div>
+        <div class="px-3 pt-3">
+            <UiSearchBar @bind-Value="_search" Placeholder="Hledat…" Count="@Rows.Count()" CountLabel="záznamů" />
+        </div>
+        <div class="table-responsive">
+            <table class="table table-hover table-sm align-middle mb-0">
+                <thead>
+                    <tr>
+                        <th>Název</th>
+                        @if (_tab == "matches")
+                        {
+                            <th>Datum</th>
+                            <th class="text-center">Skóre</th>
+                            <th class="text-center">Status</th>
+                        }
+                        else
+                        {
+                            <th>Země</th>
+                        }
+                        <th>Zdroj</th>
+                        <th>Aktualizováno</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (!Rows.Any())
+                    {
+                        <tr><td colspan="5" class="text-muted text-center py-4">Žádné záznamy.</td></tr>
+                    }
+                    @foreach (var r in Rows.Take(300))
+                    {
+                        <tr>
+                            <td class="fw-semibold">@Display(r.Name)</td>
+                            @if (_tab == "matches")
+                            {
+                                <td class="text-muted small text-nowrap">@(r.MatchDate?.ToString("dd.MM.yyyy") ?? "—")</td>
+                                <td class="text-center">
+                                    @if (r.HomeScore is not null && r.AwayScore is not null)
+                                    {
+                                        <span class="badge bg-secondary fw-bold">@r.HomeScore : @r.AwayScore</span>
+                                    }
+                                    else { <span class="text-muted small">—</span> }
+                                </td>
+                                <td class="text-center">
+                                    <span class="badge @(r.Status == "finished" ? "bg-success" : "bg-secondary") small">
+                                        @(r.Status ?? "—")
+                                    </span>
+                                </td>
+                            }
+                            else
+                            {
+                                <td class="text-muted small">@(r.Country ?? "—")</td>
+                            }
+                            <td class="text-muted small">
+                                @if (!string.IsNullOrEmpty(r.SourceUrl))
+                                {
+                                    <a href="@r.SourceUrl" target="_blank" rel="noopener noreferrer"
+                                       class="text-decoration-none">@(r.SourceName ?? "zdroj")</a>
+                                }
+                                else { @(r.SourceName ?? "—") }
+                            </td>
+                            <td class="text-muted small text-nowrap">
+                                @(r.UpdatedAt?.ToLocalTime().ToString("dd.MM.yyyy") ?? "—")
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+}
+
+@code {
+    // Generická stránka pro všech ~40 sportů. Schéma se mezi sporty liší (AmFootball* nemá Name,
+    // některé nemají Country ani skóre), proto se doménové sloupce čtou přes to_jsonb(t)->>'Sloupec' —
+    // to vrátí NULL místo chyby, když sloupec v dané tabulce neexistuje.
+
+    [Parameter] public string Sport { get; set; } = "";
+
+    private bool _loading = true;
+    private bool _invalidSport;
+    private string _tab = "teams";
+    private string _search = "";
+    private readonly Dictionary<string, List<Row>> _data = new();
+    private readonly HashSet<string> _unavailable = new();
+
+    private sealed record Tab(string Key, string Label, string Icon, string Suffix);
+    private readonly Tab[] _tabs =
+    [
+        new("teams",   "Týmy",   "bi-people",         "Teams"),
+        new("leagues", "Ligy",   "bi-diagram-3",      "Leagues"),
+        new("players", "Hráči",  "bi-person-badge",   "Players"),
+        new("matches", "Zápasy", "bi-calendar-event", "Matches"),
+    ];
+
+    private IEnumerable<Row> Rows =>
+        (_data.TryGetValue(_tab, out var rows) ? rows : [])
+        .Where(r => string.IsNullOrWhiteSpace(_search)
+                 || (r.Name != null && r.Name.Contains(_search, StringComparison.OrdinalIgnoreCase))
+                 || (r.Country != null && r.Country.Contains(_search, StringComparison.OrdinalIgnoreCase)));
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _loading = true;
+        _invalidSport = false;
+        _data.Clear();
+        _unavailable.Clear();
+
+        // Sport z URL nesmí do SQL — whitelist se ověří proti skutečným tabulkám v katalogu.
+        if (!System.Text.RegularExpressions.Regex.IsMatch(Sport, "^[A-Za-z]{2,40}$"))
+        {
+            _invalidSport = true;
+            _loading = false;
+            return;
+        }
+
+        await using (var db = await DbFactory.CreateDbContextAsync())
+        {
+            const string existsSql = """
+                SELECT count(*) AS "Value" FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+                WHERE n.nspname = 'public' AND c.relkind = 'r' AND c.relname = {0}
+                """;
+            var exists = await db.Database.SqlQueryRaw<long>(existsSql, Sport + "Teams").FirstAsync();
+            if (exists == 0)
+            {
+                _invalidSport = true;
+                _loading = false;
+                return;
+            }
+        }
+
+        foreach (var tab in _tabs)
+        {
+            try
+            {
+                await using var db = await DbFactory.CreateDbContextAsync();
+                var table = Sport + tab.Suffix;
+                var sql = $"""
+                    SELECT COALESCE(to_jsonb(t) ->> 'Name', t."NormalizedName")  AS "Name",
+                           to_jsonb(t) ->> 'Country'                            AS "Country",
+                           (to_jsonb(t) ->> 'MatchDate')::date                  AS "MatchDate",
+                           to_jsonb(t) ->> 'HomeScore'                          AS "HomeScore",
+                           to_jsonb(t) ->> 'AwayScore'                          AS "AwayScore",
+                           to_jsonb(t) ->> 'Status'                             AS "Status",
+                           t."SourceName", t."SourceUrl", t."UpdatedAt"
+                    FROM "{table}" t
+                    WHERE t."IsDeleted" = false
+                    ORDER BY 1
+                    LIMIT 500
+                    """;
+                _data[tab.Key] = await db.Database.SqlQueryRaw<Row>(sql).ToListAsync();
+            }
+            catch
+            {
+                // Ne každý sport má všechny čtyři tabulky — chybějící sekce se jen označí jako nedostupná.
+                _data[tab.Key] = [];
+                _unavailable.Add(tab.Key);
+            }
+        }
+
+        _loading = false;
+    }
+
+    private void SetTab(string key) { _tab = key; _search = ""; }
+
+    private static string Humanize(string sport) =>
+        System.Text.RegularExpressions.Regex.Replace(sport, "(?<=[a-z])(?=[A-Z])", " ");
+
+    // Část sportů drží jen normalizované názvy malými písmeny — pro zobrazení je zkulturníme.
+    private static string Display(string? name) => string.IsNullOrWhiteSpace(name)
+        ? "—"
+        : (name == name.ToLowerInvariant()
+            ? System.Globalization.CultureInfo.InvariantCulture.TextInfo.ToTitleCase(name)
+            : name);
+
+    private class Row
+    {
+        public string? Name { get; set; }
+        public string? Country { get; set; }
+        public DateOnly? MatchDate { get; set; }
+        public string? HomeScore { get; set; }
+        public string? AwayScore { get; set; }
+        public string? Status { get; set; }
+        public string? SourceName { get; set; }
+        public string? SourceUrl { get; set; }
+        public DateTimeOffset? UpdatedAt { get; set; }
+    }
+}

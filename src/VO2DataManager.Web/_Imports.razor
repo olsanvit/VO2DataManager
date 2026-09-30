@@ -23,3 +23,6 @@
 @using SharedServices.Models.UI
 @using Microsoft.AspNetCore.Authorization
 @using Microsoft.AspNetCore.Components.Authorization
+@* LangSwitcher ze SharedServices má vlastní @namespace, ne SharedServices.Components.* — bez tohoto using
+   se v NavMenu vykreslil jako neznámý HTML tag (build warning RZ10012) a přepínač jazyka nefungoval. *@
+@using MercenariesAndBeasts.Infrastructure.Components.Localization

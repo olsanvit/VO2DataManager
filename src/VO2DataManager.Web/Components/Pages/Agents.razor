@@ -3,6 +3,7 @@
 @attribute [Microsoft.AspNetCore.Authorization.Authorize]
 
 @using Microsoft.EntityFrameworkCore
+@using System.Text.RegularExpressions
 @inject IDbContextFactory<AppDbContextAiData> DbFactory
 @implements IDisposable
 
@@ -34,20 +35,20 @@ else
     <div class="row g-3 mb-4 ui-anim-fade-up">
         <div class="col-4 col-md-2">
             <div class="ui-panel text-center p-3" style="cursor:pointer" @onclick='() => SetFilter("OK")'>
-                <div class="fs-4 fw-bold text-success">@_agents.Count(a => a.Status == "ok")</div>
+                <div class="fs-4 fw-bold text-success">@_agents.Count(a => Family(a.Status) == "OK")</div>
                 <div class="text-muted small">OK</div>
             </div>
         </div>
         <div class="col-4 col-md-2">
             <div class="ui-panel text-center p-3" style="cursor:pointer" @onclick='() => SetFilter("Chyba")'>
-                <div class="fs-4 fw-bold text-danger">@_agents.Count(a => a.Status != null && a.Status.Contains("error"))</div>
+                <div class="fs-4 fw-bold text-danger">@_agents.Count(a => Family(a.Status) == "Chyba")</div>
                 <div class="text-muted small">Chyba</div>
             </div>
         </div>
         <div class="col-4 col-md-2">
-            <div class="ui-panel text-center p-3" style="cursor:pointer" @onclick='() => SetFilter("Blokováni")'>
-                <div class="fs-4 fw-bold text-warning">@_agents.Count(a => a.Status != null && a.Status.Contains("blocked"))</div>
-                <div class="text-muted small">Blokováni</div>
+            <div class="ui-panel text-center p-3" style="cursor:pointer" @onclick='() => SetFilter("Varování")'>
+                <div class="fs-4 fw-bold text-warning">@_agents.Count(a => Family(a.Status) == "Varování")</div>
+                <div class="text-muted small">Varování</div>
             </div>
         </div>
         <div class="col-4 col-md-2">
@@ -149,7 +150,8 @@ else
                             <td class="text-muted small">
                                 @if (!string.IsNullOrEmpty(a.PromptVersion))
                                 {
-                                    <span class="badge @(a.PromptVersion == "10.0.0" ? "bg-success" : "bg-warning text-dark")">@a.PromptVersion</span>
+                                    <span class="badge @(a.PromptVersion == _latestPrompt ? "bg-success" : "bg-warning text-dark")"
+                                          title="@(a.PromptVersion == _latestPrompt ? "aktuální verze" : $"nejnovější viděná verze je {_latestPrompt}")">@a.PromptVersion</span>
                                 }
                                 else { <span class="text-muted">—</span> }
                             </td>
@@ -175,15 +177,19 @@ else
     private System.Threading.Timer? _timer;
     private int _refreshCountdown = 300;
 
-    private readonly string[] _filters = ["Vše", "OK", "Chyba", "Blokováni", "Po termínu", "Bez dat"];
+    // Dřív se za aktuální považovala natvrdo zapsaná "10.0.0" — governance mezitím povyskočila a všichni
+    // agenti svítili žlutě. Nejnovější verze se proto bere z dat: nejvyšší verze napříč posledními běhy.
+    private string? _latestPrompt;
+
+    private readonly string[] _filters = ["Vše", "OK", "Varování", "Chyba", "Po termínu", "Bez dat"];
 
     private IEnumerable<AgentRow> FilteredAgents => _agents
         .Where(a => _showInactive || a.IsActive)
         .Where(a => _activeFilter switch
         {
-            "OK"         => a.Status == "ok",
-            "Chyba"      => a.Status != null && a.Status.Contains("error"),
-            "Blokováni"  => a.Status != null && a.Status.Contains("blocked"),
+            "OK"         => Family(a.Status) == "OK",
+            "Varování"   => Family(a.Status) == "Varování",
+            "Chyba"      => Family(a.Status) == "Chyba",
             "Po termínu" => IsOverdue(a),
             "Bez dat"    => a.Status == null,
             _            => true
@@ -194,20 +200,40 @@ else
 
     private void SetFilter(string f) { _activeFilter = f; }
 
+    /// <summary>Verze jsou textové („11.2.0"), řadit je jako řetězce by dalo 9 &gt; 11.</summary>
+    private static (int, int, int) VersionKey(string? v)
+    {
+        var parts = (v ?? "").Split('.');
+        int P(int i) => parts.Length > i && int.TryParse(parts[i], out var n) ? n : 0;
+        return (P(0), P(1), P(2));
+    }
+
     private static bool IsOverdue(AgentRow a) =>
         a.IsActive && a.NextRunAt.HasValue && a.NextRunAt.Value < DateTimeOffset.UtcNow;
 
     private static int OverdueHours(AgentRow a) =>
         a.NextRunAt.HasValue ? (int)(DateTimeOffset.UtcNow - a.NextRunAt.Value).TotalHours : 0;
 
-    private static RenderFragment StatusBadge(string? status) => status switch
+    /// <summary>
+    /// Agenti hlásí desítky různých statusů (degraded, completed_with_warnings, partial, success…),
+    /// doslovné "ok" mezi nimi vůbec není — dřívější porovnání na "ok"/"error" proto ukazovalo samé nuly.
+    /// </summary>
+    private static string Family(string? status) => status switch
     {
-        "ok"                                    => @<span class="badge bg-success">✅ ok</span>,
-        null                                    => @<span class="badge bg-secondary">??? no data</span>,
-        var s when s.Contains("schema_blocked") => @<span class="badge bg-warning text-dark">⛔ schema_blocked</span>,
-        var s when s.Contains("blocked")        => @<span class="badge bg-warning text-dark">⚠️ blocked</span>,
-        var s when s.Contains("error")          => @<span class="badge bg-danger">❌ error</span>,
-        _                                       => @<span class="badge bg-secondary">@status</span>
+        null => "Bez dat",
+        var s when Regex.IsMatch(s, "error|blocked|halted|investigation|fail", RegexOptions.IgnoreCase) => "Chyba",
+        var s when Regex.IsMatch(s, "degraded|warning|partial|ready", RegexOptions.IgnoreCase) => "Varování",
+        var s when Regex.IsMatch(s, "^(ok|success|completed)$", RegexOptions.IgnoreCase) => "OK",
+        _ => "Jiné"
+    };
+
+    private static RenderFragment StatusBadge(string? status) => Family(status) switch
+    {
+        "OK"       => @<span class="badge bg-success">✅ @status</span>,
+        "Bez dat"  => @<span class="badge bg-secondary">— bez reportu</span>,
+        "Chyba"    => @<span class="badge bg-danger">❌ @status</span>,
+        "Varování" => @<span class="badge bg-warning text-dark">⚠️ @status</span>,
+        _          => @<span class="badge bg-secondary">@status</span>
     };
 
     protected override async Task OnInitializedAsync()
@@ -264,11 +290,11 @@ else
             ORDER BY
               CASE
                 WHEN s."IsActive" = false THEN 9
-                WHEN r."Status" IS NULL THEN 4
-                WHEN r."Status" LIKE '%error%' THEN 0
-                WHEN r."Status" LIKE '%blocked%' THEN 1
-                WHEN s."NextRunAt" < NOW() THEN 2
-                ELSE 3
+                WHEN r."Status" ~* '(error|blocked|halted|investigation|fail)' THEN 0
+                WHEN r."Status" IS NULL THEN 1
+                WHEN r."Status" ~* '(degraded|warning|partial|ready)' THEN 2
+                WHEN s."NextRunAt" < NOW() THEN 3
+                ELSE 4
               END,
               s."NextRunAt" ASC NULLS LAST
             """;
@@ -276,6 +302,13 @@ else
         _agents = await db.Database
             .SqlQueryRaw<AgentRow>(sql)
             .ToListAsync();
+
+        _latestPrompt = _agents
+            .Select(a => a.PromptVersion)
+            .Where(v => !string.IsNullOrWhiteSpace(v))
+            .Distinct()
+            .OrderByDescending(VersionKey)
+            .FirstOrDefault();
 
         _loading = false;
     }

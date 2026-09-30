@@ -56,6 +56,8 @@
 </div>
 
 @code {
+    // Domény odpovídají ~/deploy-to-qnap.sh a byly ověřeny v DNS (2026-09-13) — dřívější odkazy
+    // (vo2datamanager.*, mab.*, te.*, *-dev.*) vůbec neexistovaly. Dev URL prázdné = dev doména není.
     private record ProjectInfo(
         string Name,
         string Icon,
@@ -72,49 +74,49 @@
         new("VO2DataManager",       "bi-database-fill",    "Hudba, sporty, AI agenti, data management",
             "Aktivní", "bg-success",
             "https://github.com/olsanvit/VO2DataManager",
-            "https://vo2datamanager.vo2info.cz",
-            "https://vo2datamanager-dev.vo2info.cz"),
+            "https://datamanager.vo2info.cz",
+            ""),
 
         new("MercenariesAndBeasts", "bi-shield-fill",      "RPG hra — žoldnéři, kobky, bestie, obchod",
             "Aktivní", "bg-success",
             "https://github.com/olsanvit/Mercenaries-and-Beasts",
-            "https://mab.vo2info.cz",
-            "https://mab-dev.vo2info.cz",
+            "https://ordersandbeasts.vo2info.cz",
+            "",
             "IDOR fix — LocationFight, DungeonFight"),
 
         new("SimulateGames",        "bi-controller",       "Simulátor her — IGDB, Top Eleven, Charts",
             "Aktivní", "bg-success",
             "https://github.com/olsanvit/SimulateGames",
-            "https://simulategames.vo2info.cz",
-            "https://simulategames-dev.vo2info.cz",
+            "https://simgames.vo2info.cz",
+            "",
             "CRITICAL: hardcoded heslo v AllSport.cs",
             "CRITICAL: SQL injection v GetAllDates()"),
 
         new("SimulateReal",         "bi-trophy-fill",      "Simulátor reálných zápasů — football, hockey",
             "Aktivní", "bg-success",
             "https://github.com/olsanvit/SimulateReal",
-            "https://simulatereal.vo2info.cz",
-            "https://simulatereal-dev.vo2info.cz",
+            "https://simreal.vo2info.cz",
+            "",
             "CRITICAL: TEST záznam do DB každou sekundu (RealBackgroundService)"),
 
         new("UniSportManager",      "bi-people-fill",      "Správa sportovních týmů, ligy, sezóny",
             "Aktivní", "bg-success",
             "https://github.com/olsanvit/UniSportManager",
             "https://unisportmanager.vo2info.cz",
-            "https://unisportmanager-dev.vo2info.cz"),
+            ""),
 
         new("ScorerApp",            "bi-123",              "Sport scoring — ligy, zápasy, ELO, závody",
             "Aktivní", "bg-success",
             "https://github.com/olsanvit/ScorerApp",
             "https://scorer.vo2info.cz",
-            "https://scorer-dev.vo2info.cz",
+            "",
             "PENDING: Admin role check na destruktivní operace"),
 
         new("ClubManager",          "bi-building",         "Komunikátko + rezervace aut (multi-tenant)",
             "Vývoj", "bg-warning text-dark",
             "https://github.com/olsanvit/ClubManager",
-            "",
-            "",
+            "https://clubmanager.vo2info.cz",
+            "https://dev.clubmanager.vo2info.cz",
             "CRITICAL: IDOR — MessageDetail, OrgAdmin",
             "CRITICAL: Race condition — CarReservationService"),
 
@@ -122,21 +124,21 @@
             "Aktivní", "bg-success",
             "https://github.com/olsanvit/AgentsPromptsSkills",
             "https://aps.vo2info.cz",
-            "https://aps-dev.vo2info.cz",
+            "",
             "PENDING: IsDeleted filter na AgentsListPage"),
 
         new("TopElevenStats",       "bi-bar-chart-fill",   "Top Eleven statistiky — hráči, sezóny, trendy",
             "Aktivní", "bg-success",
             "https://github.com/olsanvit/TopElevenStats",
-            "https://te.vo2info.cz",
-            "https://te-dev.vo2info.cz",
+            "https://testats.vo2info.cz",
+            "",
             "PENDING: @rendermode na Home.razor (ApexCharts SSR)"),
 
         new("VINWMIVehicles",       "bi-car-front-fill",   "VIN/WMI lookup, AI popis, SimulateCar",
             "Aktivní", "bg-success",
             "https://github.com/olsanvit/VINWMIVehicles",
-            "https://vin.vo2info.cz",
-            "https://vin-dev.vo2info.cz"),
+            "https://vinwmi.vo2info.cz",
+            ""),
 
         new("SharedServices",       "bi-boxes",            "Sdílená knihovna — auth, modely, DbContext",
             "Sdílený", "bg-info",

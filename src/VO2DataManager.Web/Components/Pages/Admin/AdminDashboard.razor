@@ -7,7 +7,6 @@
 @using Microsoft.AspNetCore.Authorization
 @using Microsoft.AspNetCore.Identity
 @using Microsoft.EntityFrameworkCore
-@using SharedServices.Models.AiData
 @inject UserManager<AppUser> UserManager
 @inject IDbContextFactory<AppDbContextAiData> DbFactory
 
@@ -15,6 +14,9 @@
 
 <div class="ui-page-header ui-anim-fade-up">
     <h4 class="m-0"><i class="bi bi-shield-lock me-2 text-accent"></i>Admin — VO2DataManager</h4>
+    <a href="/admin/projects" class="btn btn-sm btn-outline-secondary">
+        <i class="bi bi-grid-3x3-gap me-1"></i>Přehled projektů
+    </a>
 </div>
 
 @if (_loading)
@@ -23,7 +25,14 @@
 }
 else
 {
-    <!-- Statistiky -->
+    @if (_error is not null)
+    {
+        <div class="alert alert-warning py-2 small ui-anim-fade-up">
+            <i class="bi bi-exclamation-triangle me-1"></i>Část statistik se nenačetla: @_error
+        </div>
+    }
+
+    <!-- Statistiky AIData -->
     <div class="row g-3 mb-3 ui-anim-fade-up">
         <div class="col-6 col-md-2">
             <div class="ui-panel text-center p-3">
@@ -33,39 +42,39 @@ else
         </div>
         <div class="col-6 col-md-2">
             <div class="ui-panel text-center p-3">
-                <div class="fs-3 fw-bold text-accent">@_artistCount</div>
-                <div class="text-muted small">Interpreti</div>
+                <div class="fs-3 fw-bold text-accent">@_tableCount</div>
+                <div class="text-muted small">Tabulek v AIData</div>
             </div>
         </div>
         <div class="col-6 col-md-2">
             <div class="ui-panel text-center p-3">
-                <div class="fs-3 fw-bold text-accent">@_albumCount</div>
-                <div class="text-muted small">Alba</div>
+                <div class="fs-3 fw-bold text-accent">@_tablesWithData</div>
+                <div class="text-muted small">Z toho s daty</div>
             </div>
         </div>
         <div class="col-6 col-md-2">
             <div class="ui-panel text-center p-3">
-                <div class="fs-3 fw-bold text-accent">@_songCount</div>
-                <div class="text-muted small">Skladby</div>
+                <div class="fs-3 fw-bold text-success">@_agentsOk</div>
+                <div class="text-muted small">Agenti OK</div>
             </div>
         </div>
         <div class="col-6 col-md-2">
             <div class="ui-panel text-center p-3">
-                <div class="fs-3 fw-bold text-accent">@_amFootballLeagueCount</div>
-                <div class="text-muted small">Am.Football ligy</div>
+                <div class="fs-3 fw-bold @(_agentsWarning > 0 ? "text-warning" : "text-muted")">@_agentsWarning</div>
+                <div class="text-muted small">Agenti s varováním</div>
             </div>
         </div>
         <div class="col-6 col-md-2">
             <div class="ui-panel text-center p-3">
-                <div class="fs-3 fw-bold text-accent">@_baseballLeagueCount</div>
-                <div class="text-muted small">Baseball ligy</div>
+                <div class="fs-3 fw-bold @(_agentsProblem > 0 ? "text-danger" : "text-muted")">@_agentsProblem</div>
+                <div class="text-muted small">Agenti s problémem</div>
             </div>
         </div>
     </div>
 
     <div class="row g-3">
         <!-- Uživatelé -->
-        <div class="col-md-4">
+        <div class="col-md-5">
             <div class="ui-panel h-100 ui-anim-fade-up">
                 <div class="ui-panel-header">
                     <span class="ui-panel-title">
@@ -75,9 +84,13 @@ else
                 <div class="table-responsive">
                     <table class="table table-sm table-hover align-middle mb-0">
                         <thead>
-                            <tr><th>Email</th><th>Role</th></tr>
+                            <tr><th>Email</th><th>Role</th><th class="text-center">Whitelist</th></tr>
                         </thead>
                         <tbody>
+                            @if (_users.Count == 0)
+                            {
+                                <tr><td colspan="3" class="text-muted text-center py-3">Žádní uživatelé.</td></tr>
+                            }
                             @foreach (var u in _users)
                             {
                                 <tr>
@@ -88,65 +101,50 @@ else
                                         else
                                         { <span class="badge bg-secondary">User</span> }
                                     </td>
+                                    <td class="text-center">
+                                        @if (u.IsWhitelisted)
+                                        { <i class="bi bi-check-circle-fill text-success"></i> }
+                                        else
+                                        { <i class="bi bi-dash-circle text-muted"></i> }
+                                    </td>
                                 </tr>
                             }
                         </tbody>
                     </table>
                 </div>
+                <div class="p-2 border-top border-opacity-10 text-muted small">
+                    Whitelist se zatím spravuje jen v DB — stránka pro správu uživatelů chybí.
+                </div>
             </div>
         </div>
 
-        <!-- Top interpreti -->
-        <div class="col-md-8">
+        <!-- Největší tabulky -->
+        <div class="col-md-7">
             <div class="ui-panel h-100 ui-anim-fade-up">
                 <div class="ui-panel-header">
                     <span class="ui-panel-title">
-                        <i class="bi bi-music-note-list text-accent"></i>Top 20 interpretů (dle abecedy)
+                        <i class="bi bi-database text-accent"></i>Nejobsazenější tabulky AIData
                     </span>
                 </div>
                 <div class="table-responsive">
                     <table class="table table-sm table-hover align-middle mb-0">
                         <thead>
-                            <tr><th>Interpret</th></tr>
+                            <tr><th>Tabulka</th><th class="text-end">Řádků (odhad)</th></tr>
                         </thead>
                         <tbody>
-                            @foreach (var a in _recentArtists)
+                            @if (_topTables.Count == 0)
+                            {
+                                <tr><td colspan="2" class="text-muted text-center py-3">Statistiky nedostupné.</td></tr>
+                            }
+                            @foreach (var t in _topTables)
                             {
                                 <tr>
-                                    <td class="small">@a.Name</td>
+                                    <td class="small font-monospace">@t.Table</td>
+                                    <td class="text-end small">@t.Rows.ToString("N0")</td>
                                 </tr>
                             }
                         </tbody>
                     </table>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Přehled AI dat -->
-    <div class="ui-panel ui-anim-fade-up mt-3">
-        <div class="ui-panel-header">
-            <span class="ui-panel-title">
-                <i class="bi bi-database text-accent"></i>Přehled AI dat
-            </span>
-        </div>
-        <div class="p-3">
-            <div class="row g-2 text-center">
-                <div class="col-6 col-md-3">
-                    <div class="fs-5 fw-bold text-accent">@_artistCount</div>
-                    <div class="text-muted small">Interpreti</div>
-                </div>
-                <div class="col-6 col-md-3">
-                    <div class="fs-5 fw-bold text-accent">@_albumCount</div>
-                    <div class="text-muted small">Alba</div>
-                </div>
-                <div class="col-6 col-md-3">
-                    <div class="fs-5 fw-bold text-accent">@_songCount</div>
-                    <div class="text-muted small">Skladby</div>
-                </div>
-                <div class="col-6 col-md-3">
-                    <div class="fs-5 fw-bold text-accent">@_amFootballLeagueCount</div>
-                    <div class="text-muted small">Am.Football ligy</div>
                 </div>
             </div>
         </div>
@@ -154,28 +152,85 @@ else
 }
 
 @code {
+    // Přepsáno 2026-09-12: původní verze počítala db.Artists/Albums/Songs a AmericanFootballLeagues,
+    // tedy tabulky, které v AIData neexistují → stránka padala. Teď se ukazuje to, co v DB reálně je:
+    // stav agentů a pokrytí tabulek daty. Odhady řádků z pg_stat_user_tables,
+    // protože count(*) přes ~494 tabulek by bylo neúnosně pomalé.
+
     private bool _loading = true;
-    private int _userCount, _artistCount, _albumCount, _songCount, _amFootballLeagueCount, _baseballLeagueCount;
+    private string? _error;
+
+    private int _userCount;
+    private int _tableCount, _tablesWithData, _agentsOk, _agentsWarning, _agentsProblem;
     private List<AppUser> _users = new();
-    private List<Artist> _recentArtists = new();
+    private List<TableRow> _topTables = new();
 
     protected override async Task OnInitializedAsync()
     {
-        _users = await UserManager.Users.OrderByDescending(u => u.IsAdmin).ToListAsync();
+        _users = await UserManager.Users.OrderByDescending(u => u.IsAdmin).ThenBy(u => u.Email).ToListAsync();
         _userCount = _users.Count;
 
-        await using var db = await DbFactory.CreateDbContextAsync();
-        _artistCount           = await db.Artists.CountAsync();
-        _albumCount            = await db.Albums.CountAsync();
-        _songCount             = await db.Songs.CountAsync();
-        _amFootballLeagueCount = await db.AmericanFootballLeagues.CountAsync();
-        _baseballLeagueCount   = await db.BaseballLeagues.CountAsync();
+        try
+        {
+            await using var db = await DbFactory.CreateDbContextAsync();
 
-        _recentArtists = await db.Artists
-            .OrderBy(a => a.Name)
-            .Take(20)
-            .ToListAsync();
+            // Korelovaný max() přes AgentRunReports byl neúnosně pomalý (>30 s), DISTINCT ON vezme
+            // poslední běh každého agenta jedním průchodem. Počet řádků Logs je odhad z pg_stat —
+            // count(*) nad rostoucím logem by dashboard zdržoval.
+            const string statsSql = """
+                WITH last_run AS (
+                    SELECT DISTINCT ON ("AgentName") "AgentName", "Status"
+                    FROM "AgentRunReports"
+                    ORDER BY "AgentName", "RunAt" DESC
+                )
+                SELECT
+                  (SELECT count(*) FROM pg_stat_user_tables WHERE schemaname = 'public')                    AS "Tables",
+                  (SELECT count(*) FROM pg_stat_user_tables WHERE schemaname = 'public' AND n_live_tup > 0) AS "WithData",
+                  (SELECT count(*) FROM last_run
+                     WHERE "Status" IN ('ok','success','completed'))                                        AS "AgentsOk",
+                  (SELECT count(*) FROM last_run
+                     WHERE "Status" ~* '(degraded|warning|partial|ready)')                                  AS "AgentsWarning",
+                  (SELECT count(*) FROM last_run
+                     WHERE "Status" IS NULL
+                        OR "Status" ~* '(error|blocked|halted|investigation|fail)')                         AS "AgentsProblem"
+                """;
+
+            var stats = await db.Database.SqlQueryRaw<StatsRow>(statsSql).FirstAsync();
+            _tableCount = (int)stats.Tables;
+            _tablesWithData = (int)stats.WithData;
+            _agentsOk = (int)stats.AgentsOk;
+            _agentsWarning = (int)stats.AgentsWarning;
+            _agentsProblem = (int)stats.AgentsProblem;
+
+            const string topSql = """
+                SELECT relname AS "Table", n_live_tup AS "Rows"
+                FROM pg_stat_user_tables
+                WHERE schemaname = 'public' AND n_live_tup > 0
+                ORDER BY n_live_tup DESC
+                LIMIT 15
+                """;
+            _topTables = await db.Database.SqlQueryRaw<TableRow>(topSql).ToListAsync();
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
 
         _loading = false;
+    }
+
+    private class StatsRow
+    {
+        public long Tables { get; set; }
+        public long WithData { get; set; }
+        public long AgentsOk { get; set; }
+        public long AgentsWarning { get; set; }
+        public long AgentsProblem { get; set; }
+    }
+
+    private class TableRow
+    {
+        public string Table { get; set; } = "";
+        public long Rows { get; set; }
     }
 }

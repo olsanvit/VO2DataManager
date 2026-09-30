@@ -20,6 +20,20 @@
 {
     <PageLoadingSpinner />
 }
+else if (_unavailable)
+{
+    <div class="ui-panel ui-anim-fade-up text-center p-5" style="max-width:640px;margin:40px auto;">
+        <div style="font-size:2.5rem;margin-bottom:.5rem;">🎵</div>
+        <h5 class="mb-2">Hudební modul zatím nemá data</h5>
+        <p class="text-muted small mb-3">
+            Tabulky <code>Artists</code>, <code>Albums</code> a <code>Songs</code> v databázi AIData zatím neexistují —
+            vznikají postupně přes AI proces. Až se objeví, začne se tato stránka plnit sama.
+        </p>
+        <a href="/agents" class="btn btn-sm btn-primary">
+            <i class="bi bi-robot me-1"></i>Přejít na přehled agentů
+        </a>
+    </div>
+}
 else
 {
     <div class="row g-3 mb-3 ui-anim-fade-up">
@@ -145,6 +159,7 @@ else
 
 @code {
     private bool _loading = true;
+    private bool _unavailable;
     private int _artistCount;
     private int _albumCount;
     private int _songCount;
@@ -163,51 +178,70 @@ else
 
     protected override async Task OnInitializedAsync()
     {
-        await using var db = await DbFactory.CreateDbContextAsync();
+        try
+        {
+            // EF Core nedovolí souběžné dotazy nad jednou instancí kontextu (dřívější Task.WhenAll nad
+            // sdíleným `db` hrozil InvalidOperationException) — každý paralelní dotaz má proto vlastní kontext.
+            var tArtistCount       = QueryAsync(db => db.Artists.CountAsync());
+            var tAlbumCount        = QueryAsync(db => db.Albums.CountAsync());
+            var tSongCount         = QueryAsync(db => db.Songs.CountAsync());
+            var tGenreLinks        = QueryAsync(db => db.ArtistGenres
+                .Join(db.Genres, ag => ag.GenreGuidId, g => g.GuidId, (ag, g) => new GenreLink(g.Name, ag.ArtistGuidId))
+                .ToListAsync());
+            var tArtistAlbumCounts = QueryAsync(db => db.ArtistAlbums
+                .GroupBy(aa => aa.ArtistGuidId)
+                .Select(g => new AlbumCount(g.Key, g.Count()))
+                .OrderByDescending(x => x.Count)
+                .Take(10)
+                .ToListAsync());
+            var tRecentAlbums      = QueryAsync(db => db.Albums
+                .AsNoTracking()
+                .OrderByDescending(al => al.CreatedAt)
+                .Take(20)
+                .ToListAsync());
 
-        // Paralelní dotazy — counts + data nezávislá na sobě
-        var tArtistCount = db.Artists.CountAsync();
-        var tAlbumCount  = db.Albums.CountAsync();
-        var tSongCount   = db.Songs.CountAsync();
-        var tGenreLinks  = db.ArtistGenres
-            .Join(db.Genres, ag => ag.GenreGuidId, g => g.GuidId, (ag, g) => new { g.Name, ag.ArtistGuidId })
-            .ToListAsync();
-        var tArtistAlbumCounts = db.ArtistAlbums
-            .GroupBy(aa => aa.ArtistGuidId)
-            .Select(g => new { ArtistGuidId = g.Key, Count = g.Count() })
-            .OrderByDescending(x => x.Count)
-            .Take(10)
-            .ToListAsync();
-        var tRecentAlbums = db.Albums
-            .OrderByDescending(al => al.CreatedAt)
-            .Take(20)
-            .ToListAsync();
+            await Task.WhenAll(tArtistCount, tAlbumCount, tSongCount, tGenreLinks, tArtistAlbumCounts, tRecentAlbums);
 
-        await Task.WhenAll(tArtistCount, tAlbumCount, tSongCount, tGenreLinks, tArtistAlbumCounts, tRecentAlbums);
+            _artistCount  = tArtistCount.Result;
+            _albumCount   = tAlbumCount.Result;
+            _songCount    = tSongCount.Result;
+            _recentAlbums = tRecentAlbums.Result;
 
-        _artistCount = tArtistCount.Result;
-        _albumCount  = tAlbumCount.Result;
-        _songCount   = tSongCount.Result;
-        _recentAlbums = tRecentAlbums.Result;
+            _genreData = tGenreLinks.Result
+                .Where(x => x.Name != null)
+                .GroupBy(x => x.Name!)
+                .Select(g => new GenreItem(g.Key, g.Count()))
+                .OrderByDescending(g => g.Count)
+                .Take(15)
+                .ToList();
 
-        _genreData = tGenreLinks.Result
-            .Where(x => x.Name != null)
-            .GroupBy(x => x.Name!)
-            .Select(g => new GenreItem(g.Key, g.Count()))
-            .OrderByDescending(g => g.Count)
-            .Take(15)
-            .ToList();
-
-        var artistAlbumCounts = tArtistAlbumCounts.Result;
-        var topIds = artistAlbumCounts.Select(x => x.ArtistGuidId).ToList();
-        var artists = await db.Artists.Where(a => topIds.Contains(a.GuidId)).ToListAsync();
-        _topArtists = artistAlbumCounts
-            .Select(x => (artists.FirstOrDefault(a => a.GuidId == x.ArtistGuidId)!, x.Count))
-            .Where(x => x.Item1 is not null)
-            .ToList();
+            var artistAlbumCounts = tArtistAlbumCounts.Result;
+            var topIds = artistAlbumCounts.Select(x => x.ArtistGuidId).ToList();
+            var artists = await QueryAsync(db => db.Artists.AsNoTracking()
+                .Where(a => topIds.Contains(a.GuidId)).ToListAsync());
+            _topArtists = artistAlbumCounts
+                .Select(x => (artists.FirstOrDefault(a => a.GuidId == x.ArtistGuidId)!, x.Count))
+                .Where(x => x.Item1 is not null)
+                .ToList();
+        }
+        catch (Npgsql.PostgresException)
+        {
+            // Chybějící tabulka není chyba aplikace — hudební schéma teprve vzniká přes AI proces.
+            _unavailable = true;
+        }
 
         _loading = false;
     }
+
+    /// <summary>Spustí dotaz nad vlastní krátkodobou instancí kontextu, aby šly dotazy paralelně.</summary>
+    private async Task<T> QueryAsync<T>(Func<AppDbContextAiData, Task<T>> query)
+    {
+        await using var db = await DbFactory.CreateDbContextAsync();
+        return await query(db);
+    }
+
+    private record GenreLink(string? Name, string? ArtistGuidId);
+    private record AlbumCount(string? ArtistGuidId, int Count);
 
     private record GenreItem(string Name, int Count);
 }

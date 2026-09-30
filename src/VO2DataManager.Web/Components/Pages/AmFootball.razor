@@ -3,7 +3,6 @@
 @attribute [Microsoft.AspNetCore.Authorization.Authorize]
 
 @using Microsoft.EntityFrameworkCore
-@using SharedServices.Models.AiData
 @inject IDbContextFactory<AppDbContextAiData> DbFactory
 
 <PageTitle>Americký fotbal — VO2 Data Manager</PageTitle>
@@ -16,18 +15,24 @@
 {
     <PageLoadingSpinner />
 }
+else if (_error is not null)
+{
+    <div class="alert alert-danger ui-anim-fade-up">
+        <i class="bi bi-exclamation-triangle me-1"></i>Nepodařilo se načíst data: @_error
+    </div>
+}
 else
 {
     <!-- Tabs -->
     <div class="d-flex gap-2 mb-3 ui-anim-fade-up">
         <button class="btn btn-sm @(_tab == 0 ? "btn-primary" : "btn-outline-secondary")" @onclick='() => SetTab(0)'>
-            <i class="bi bi-people me-1"></i>Týmy
+            <i class="bi bi-people me-1"></i>Týmy (@_teams.Count)
         </button>
         <button class="btn btn-sm @(_tab == 1 ? "btn-primary" : "btn-outline-secondary")" @onclick='() => SetTab(1)'>
-            <i class="bi bi-diagram-3 me-1"></i>Ligy
+            <i class="bi bi-diagram-3 me-1"></i>Ligy (@_leagues.Count)
         </button>
         <button class="btn btn-sm @(_tab == 2 ? "btn-primary" : "btn-outline-secondary")" @onclick='() => SetTab(2)'>
-            <i class="bi bi-calendar3 me-1"></i>Sezóny
+            <i class="bi bi-calendar-event me-1"></i>Zápasy (@_matches.Count)
         </button>
     </div>
 
@@ -35,34 +40,27 @@ else
     {
         <div class="ui-panel ui-anim-fade-up">
             <div class="ui-panel-header">
-                <span class="ui-panel-title">
-                    <i class="bi bi-people text-accent"></i>
-                    Týmy
-                </span>
+                <span class="ui-panel-title"><i class="bi bi-people text-accent"></i> Týmy</span>
                 <span class="badge bg-secondary">@FilteredTeams.Count()</span>
             </div>
             <div class="px-3 pt-3">
-                <UiSearchBar @bind-Value="_search"
-                             Placeholder="Hledat tým…"
-                             Count="@FilteredTeams.Count()"
-                             CountLabel="týmů" />
+                <UiSearchBar @bind-Value="_search" Placeholder="Hledat tým…"
+                             Count="@FilteredTeams.Count()" CountLabel="týmů" />
             </div>
             <div class="table-responsive">
                 <table class="table table-hover table-sm align-middle mb-0">
-                    <thead>
-                        <tr>
-                            <th>Název</th>
-                            <th>Norm. název</th>
-                            <th>Zdroj</th>
-                        </tr>
-                    </thead>
+                    <thead><tr><th>Název</th><th>Zdroj</th><th>Aktualizováno</th></tr></thead>
                     <tbody>
-                        @foreach (var t in FilteredTeams.Take(100))
+                        @if (!FilteredTeams.Any())
+                        {
+                            <tr><td colspan="3" class="text-muted text-center py-4">Žádné záznamy.</td></tr>
+                        }
+                        @foreach (var t in FilteredTeams)
                         {
                             <tr>
-                                <td class="fw-semibold">@t.Name</td>
-                                <td class="text-muted small">@t.NormalizedName</td>
-                                <td class="text-muted small">@t.ExternalSource</td>
+                                <td class="fw-semibold">@DisplayName(t.NormalizedName)</td>
+                                <td class="text-muted small">@SourceLink(t.SourceName, t.SourceUrl)</td>
+                                <td class="text-muted small text-nowrap">@FormatDate(t.UpdatedAt)</td>
                             </tr>
                         }
                     </tbody>
@@ -74,28 +72,23 @@ else
     {
         <div class="ui-panel ui-anim-fade-up">
             <div class="ui-panel-header">
-                <span class="ui-panel-title">
-                    <i class="bi bi-diagram-3 text-accent"></i>
-                    Ligy
-                </span>
+                <span class="ui-panel-title"><i class="bi bi-diagram-3 text-accent"></i> Ligy</span>
                 <span class="badge bg-secondary">@_leagues.Count</span>
             </div>
             <div class="table-responsive">
                 <table class="table table-hover table-sm align-middle mb-0">
-                    <thead>
-                        <tr>
-                            <th>Název</th>
-                            <th>Norm. název</th>
-                            <th>Zdroj</th>
-                        </tr>
-                    </thead>
+                    <thead><tr><th>Název</th><th>Zdroj</th><th>Aktualizováno</th></tr></thead>
                     <tbody>
+                        @if (!_leagues.Any())
+                        {
+                            <tr><td colspan="3" class="text-muted text-center py-4">Žádné záznamy.</td></tr>
+                        }
                         @foreach (var l in _leagues)
                         {
                             <tr>
-                                <td class="fw-semibold">@l.Name</td>
-                                <td class="text-muted small">@l.NormalizedName</td>
-                                <td class="text-muted small">@l.ExternalSource</td>
+                                <td class="fw-semibold">@DisplayName(l.NormalizedName)</td>
+                                <td class="text-muted small">@SourceLink(l.SourceName, l.SourceUrl)</td>
+                                <td class="text-muted small text-nowrap">@FormatDate(l.UpdatedAt)</td>
                             </tr>
                         }
                     </tbody>
@@ -107,28 +100,47 @@ else
     {
         <div class="ui-panel ui-anim-fade-up">
             <div class="ui-panel-header">
-                <span class="ui-panel-title">
-                    <i class="bi bi-calendar3 text-accent"></i>
-                    Sezóny
-                </span>
-                <span class="badge bg-secondary">@_seasons.Count</span>
+                <span class="ui-panel-title"><i class="bi bi-calendar-event text-accent"></i> Zápasy</span>
+                <span class="badge bg-secondary">@FilteredMatches.Count()</span>
+            </div>
+            <div class="px-3 pt-3">
+                <UiSearchBar @bind-Value="_search" Placeholder="Hledat tým, ligu…"
+                             Count="@FilteredMatches.Count()" CountLabel="zápasů" />
             </div>
             <div class="table-responsive">
                 <table class="table table-hover table-sm align-middle mb-0">
                     <thead>
                         <tr>
-                            <th>Název</th>
-                            <th>Norm. název</th>
-                            <th>Zdroj</th>
+                            <th>Datum</th>
+                            <th>Domácí</th>
+                            <th class="text-center">Skóre</th>
+                            <th>Hosté</th>
+                            <th>Liga / sezóna</th>
+                            <th class="text-center">Status</th>
                         </tr>
                     </thead>
                     <tbody>
-                        @foreach (var s in _seasons)
+                        @if (!FilteredMatches.Any())
+                        {
+                            <tr><td colspan="6" class="text-muted text-center py-4">Žádné záznamy.</td></tr>
+                        }
+                        @foreach (var m in FilteredMatches)
                         {
                             <tr>
-                                <td class="fw-semibold">@s.Name</td>
-                                <td class="text-muted small">@s.NormalizedName</td>
-                                <td class="text-muted small">@s.ExternalSource</td>
+                                <td class="text-muted small text-nowrap">@(m.MatchDate?.ToString("dd.MM.yyyy") ?? "—")</td>
+                                <td class="fw-semibold small @(IsWinner(m, m.HomeTeamName) ? "text-success" : "")">@(m.HomeTeamName ?? "—")</td>
+                                <td class="text-center">
+                                    @if (m.HomeScore.HasValue && m.AwayScore.HasValue)
+                                    {
+                                        <span class="badge bg-secondary fw-bold">@m.HomeScore.Value.ToString("0") : @m.AwayScore.Value.ToString("0")</span>
+                                    }
+                                    else { <span class="text-muted small">vs</span> }
+                                </td>
+                                <td class="fw-semibold small @(IsWinner(m, m.AwayTeamName) ? "text-success" : "")">@(m.AwayTeamName ?? "—")</td>
+                                <td class="text-muted small">@(m.LeagueName ?? "—")@(string.IsNullOrEmpty(m.Season) ? "" : $" · {m.Season}")</td>
+                                <td class="text-center">
+                                    <span class="badge @(m.Status == "finished" ? "bg-success" : "bg-secondary") small">@(m.Status ?? "—")</span>
+                                </td>
                             </tr>
                         }
                     </tbody>
@@ -139,26 +151,102 @@ else
 }
 
 @code {
+    // Tabulky AmFootball* vytvářejí AI agenti se standardním schématem (Guid PK, NormalizedName, SourceName…).
+    // Scaffoldované EF entity AmericanFootball* míří na neexistující tabulky, proto raw SQL — stejně jako Agents.razor.
+    // Týmy a ligy nemají sloupec Name, zobrazuje se NormalizedName. Tabulka AmFootballSeasons neexistuje.
+
     private bool _loading = true;
-    private int _tab = 0;
+    private string? _error;
+    private int _tab;
     private string _search = string.Empty;
 
-    private List<AmericanFootballTeam> _teams = new();
-    private List<AmericanFootballLeague> _leagues = new();
-    private List<AmericanFootballSeason> _seasons = new();
+    private List<EntityRow> _teams = [];
+    private List<EntityRow> _leagues = [];
+    private List<MatchRow> _matches = [];
 
-    private IEnumerable<AmericanFootballTeam> FilteredTeams => string.IsNullOrWhiteSpace(_search)
+    private IEnumerable<EntityRow> FilteredTeams => string.IsNullOrWhiteSpace(_search)
         ? _teams
-        : _teams.Where(t => t.Name != null && t.Name.Contains(_search, StringComparison.OrdinalIgnoreCase));
+        : _teams.Where(t => t.NormalizedName != null && t.NormalizedName.Contains(_search, StringComparison.OrdinalIgnoreCase));
+
+    private IEnumerable<MatchRow> FilteredMatches => string.IsNullOrWhiteSpace(_search)
+        ? _matches
+        : _matches.Where(m =>
+            (m.HomeTeamName != null && m.HomeTeamName.Contains(_search, StringComparison.OrdinalIgnoreCase)) ||
+            (m.AwayTeamName != null && m.AwayTeamName.Contains(_search, StringComparison.OrdinalIgnoreCase)) ||
+            (m.LeagueName != null && m.LeagueName.Contains(_search, StringComparison.OrdinalIgnoreCase)));
 
     protected override async Task OnInitializedAsync()
     {
-        await using var db = await DbFactory.CreateDbContextAsync();
-        _teams   = await db.AmericanFootballTeams.OrderBy(t => t.Name).ToListAsync();
-        _leagues = await db.AmericanFootballLeagues.OrderBy(l => l.Name).ToListAsync();
-        _seasons = await db.AmericanFootballSeasons.OrderBy(s => s.Name).ToListAsync();
+        try
+        {
+            await using var db = await DbFactory.CreateDbContextAsync();
+
+            _teams   = await db.Database.SqlQueryRaw<EntityRow>(EntitySql("AmFootballTeams")).ToListAsync();
+            _leagues = await db.Database.SqlQueryRaw<EntityRow>(EntitySql("AmFootballLeagues")).ToListAsync();
+
+            const string matchSql = """
+                SELECT "Guid", "MatchDate", "Season", "LeagueName",
+                       "HomeTeamName", "AwayTeamName", "HomeScore", "AwayScore",
+                       "Status", "WinnerTeamName"
+                FROM "AmFootballMatches"
+                WHERE "IsDeleted" = false
+                ORDER BY "MatchDate" DESC NULLS LAST
+                LIMIT 500
+                """;
+            _matches = await db.Database.SqlQueryRaw<MatchRow>(matchSql).ToListAsync();
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
         _loading = false;
     }
 
+    // Název tabulky je vždy konstanta z kódu, nikdy uživatelský vstup.
+    private static string EntitySql(string table) => $"""
+        SELECT "Guid", "NormalizedName", "SourceName", "SourceUrl", "UpdatedAt"
+        FROM "{table}"
+        WHERE "IsDeleted" = false
+        ORDER BY "NormalizedName"
+        LIMIT 1000
+        """;
+
     private void SetTab(int tab) { _tab = tab; _search = string.Empty; }
+
+    private static string DisplayName(string? normalized) => string.IsNullOrWhiteSpace(normalized)
+        ? "—"
+        : System.Globalization.CultureInfo.InvariantCulture.TextInfo.ToTitleCase(normalized);
+
+    private static string FormatDate(DateTimeOffset? d) => d?.ToLocalTime().ToString("dd.MM.yyyy") ?? "—";
+
+    private static bool IsWinner(MatchRow m, string? team) =>
+        team != null && m.WinnerTeamName != null && string.Equals(team, m.WinnerTeamName, StringComparison.OrdinalIgnoreCase);
+
+    private static RenderFragment SourceLink(string? name, string? url) =>
+        string.IsNullOrEmpty(url)
+            ? @<span>@(name ?? "—")</span>
+            : @<a href="@url" target="_blank" rel="noopener noreferrer" class="text-decoration-none">@(name ?? url) <i class="bi bi-box-arrow-up-right small"></i></a>;
+
+    private class EntityRow
+    {
+        public Guid Guid { get; set; }
+        public string? NormalizedName { get; set; }
+        public string? SourceName { get; set; }
+        public string? SourceUrl { get; set; }
+        public DateTimeOffset? UpdatedAt { get; set; }
+    }
+
+    private class MatchRow
+    {
+        public Guid Guid { get; set; }
+        public DateOnly? MatchDate { get; set; }
+        public string? Season { get; set; }
+        public string? LeagueName { get; set; }
+        public string? HomeTeamName { get; set; }
+        public string? AwayTeamName { get; set; }
+        public decimal? HomeScore { get; set; }
+        public decimal? AwayScore { get; set; }
+        public string? Status { get; set; }
+        public string? WinnerTeamName { get; set; }
+    }
 }

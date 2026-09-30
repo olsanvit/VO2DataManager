@@ -225,6 +225,16 @@ app.MapGet("/logout", async (HttpContext ctx, Microsoft.AspNetCore.Identity.Sign
     return Results.Redirect("/");
 });
 
+// Audit report obsahuje CRITICAL nálezy všech projektů — dřív ležel ve wwwroot a šel stáhnout
+// bez přihlášení. Teď se servíruje jen adminům přes autorizovaný endpoint.
+app.MapGet("/admin/audit-report", (IWebHostEnvironment env) =>
+{
+    var path = Path.Combine(env.ContentRootPath, "PrivateContent", "audit-report.html");
+    return File.Exists(path)
+        ? Results.File(path, "text/html")
+        : Results.NotFound("Audit report zatím nebyl vygenerován.");
+}).RequireAuthorization(policy => policy.RequireRole("Admin"));
+
 app.MapStaticAssets();
 app.MapMabCultureEndpoint();
 app.MapRazorComponents<App>()
@@ -255,7 +265,11 @@ catch (Exception ex) { Log.Warning(ex, "AiData EnsureCreated skipped — DB not 
 
 
 // Seed role a admin účet
-await AdminUserSeeder.SeedAsync(app.Services, app.Configuration);
+// Migrace i EnsureCreated výše nedostupnou DB tolerují, seeder ne — nezachycená výjimka při startu
+// shodila proces a kontejner po restartu QNAPu (pg16 v recovery) padal dokola (2026-09-14, exit 139,
+// 22 restartů) a neodpovídal ani na /health. Admin se doseeduje při příštím startu s dostupnou DB.
+try { await AdminUserSeeder.SeedAsync(app.Services, app.Configuration); }
+catch (Exception ex) { Log.Warning(ex, "Admin seed skipped — DB not available"); }
 
 app.Lifetime.ApplicationStopping.Register(() =>
     Log.Warning("Application stopping — flushing logs..."));

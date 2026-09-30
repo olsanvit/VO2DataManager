@@ -1,0 +1,157 @@
+@page "/admin/logs"
+@rendermode InteractiveServer
+@attribute [Authorize(Roles = "Admin")]
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.EntityFrameworkCore
+@inject IDbContextFactory<AppDbContextAiData> DbFactory
+
+<PageTitle>Logy — VO2 Data Manager</PageTitle>
+
+<div class="ui-page-header ui-anim-fade-up">
+    <h4 class="m-0"><i class="bi bi-journal-text me-2 text-accent"></i>Logy aplikace</h4>
+    <button class="btn btn-sm btn-outline-secondary" @onclick="LoadAsync" disabled="@_loading">
+        <i class="bi bi-arrow-clockwise me-1"></i>Obnovit
+    </button>
+</div>
+
+@if (_loading)
+{
+    <PageLoadingSpinner />
+}
+else if (_error is not null)
+{
+    <div class="alert alert-danger ui-anim-fade-up">
+        <i class="bi bi-exclamation-triangle me-1"></i>Nepodařilo se načíst logy: @_error
+    </div>
+}
+else
+{
+    <div class="ui-panel ui-anim-fade-up mb-3 p-3">
+        <div class="d-flex flex-wrap gap-2 align-items-center">
+            <span class="text-muted small me-1">Úroveň:</span>
+            @foreach (var lvl in _levels)
+            {
+                <button class="btn btn-sm @(_level == lvl ? "btn-primary" : "btn-outline-secondary")"
+                        @onclick="() => SetLevel(lvl)">@lvl</button>
+            }
+            <div class="ms-auto" style="min-width:240px">
+                <input class="form-control form-control-sm" placeholder="Hledat v textu…"
+                       @bind="_search" @bind:event="oninput" />
+            </div>
+        </div>
+    </div>
+
+    <div class="ui-panel ui-anim-fade-up">
+        <div class="ui-panel-header">
+            <span class="ui-panel-title">
+                <i class="bi bi-exclamation-square text-accent"></i>
+                Serilog — posledních @_logs.Count záznamů (Warning a výš)
+            </span>
+            <span class="badge bg-secondary">@Filtered.Count()</span>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-hover table-sm align-middle mb-0">
+                <thead>
+                    <tr><th>Čas</th><th>Úroveň</th><th>Zpráva</th></tr>
+                </thead>
+                <tbody>
+                    @if (!Filtered.Any())
+                    {
+                        <tr><td colspan="3" class="text-muted text-center py-4">Žádné záznamy.</td></tr>
+                    }
+                    @foreach (var l in Filtered.Take(200))
+                    {
+                        <tr>
+                            <td class="text-muted small text-nowrap">
+                                @(l.Timestamp?.ToLocalTime().ToString("dd.MM. HH:mm:ss") ?? "—")
+                            </td>
+                            <td>
+                                <span class="badge @LevelClass(l.Level) small">@(l.Level ?? "—")</span>
+                            </td>
+                            <td class="small">
+                                <div class="text-truncate" style="max-width:900px" title="@(l.Exception ?? l.Message)">
+                                    @l.Message
+                                </div>
+                                @if (!string.IsNullOrWhiteSpace(l.Exception))
+                                {
+                                    <details>
+                                        <summary class="text-danger small" style="cursor:pointer">výjimka</summary>
+                                        <pre class="small mb-0" style="white-space:pre-wrap">@l.Exception</pre>
+                                    </details>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+}
+
+@code {
+    // Serilog píše Warning+ do tabulky Logs v AIData, ale doteď se to nedalo nikde přečíst.
+    // Sloupce Serilog sinku se mezi verzemi liší, proto se čtou přes to_jsonb — chybějící sloupec
+    // vrátí NULL místo shození stránky.
+
+    private bool _loading = true;
+    private string? _error;
+    private string _level = "Vše";
+    private string _search = "";
+    private List<LogRow> _logs = [];
+
+    private readonly string[] _levels = ["Vše", "Warning", "Error", "Fatal"];
+
+    private IEnumerable<LogRow> Filtered => _logs
+        .Where(l => _level == "Vše" || string.Equals(l.Level, _level, StringComparison.OrdinalIgnoreCase))
+        .Where(l => string.IsNullOrWhiteSpace(_search)
+                 || (l.Message != null && l.Message.Contains(_search, StringComparison.OrdinalIgnoreCase))
+                 || (l.Exception != null && l.Exception.Contains(_search, StringComparison.OrdinalIgnoreCase)));
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        _error = null;
+        StateHasChanged();
+
+        try
+        {
+            await using var db = await DbFactory.CreateDbContextAsync();
+            const string sql = """
+                SELECT COALESCE(to_jsonb(l) ->> 'message', to_jsonb(l) ->> 'Message')          AS "Message",
+                       COALESCE(to_jsonb(l) ->> 'level', to_jsonb(l) ->> 'Level')              AS "Level",
+                       COALESCE(to_jsonb(l) ->> 'exception', to_jsonb(l) ->> 'Exception')      AS "Exception",
+                       COALESCE(to_jsonb(l) ->> 'timestamp', to_jsonb(l) ->> 'Timestamp')::timestamptz AS "Timestamp"
+                FROM "Logs" l
+                ORDER BY 4 DESC NULLS LAST
+                LIMIT 300
+                """;
+            _logs = await db.Database.SqlQueryRaw<LogRow>(sql).ToListAsync();
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+
+        _loading = false;
+    }
+
+    private void SetLevel(string level) => _level = level;
+
+    private static string LevelClass(string? level) => (level ?? "").ToLowerInvariant() switch
+    {
+        "fatal" => "bg-danger",
+        "error" => "bg-danger",
+        "warning" => "bg-warning text-dark",
+        _ => "bg-secondary"
+    };
+
+    private class LogRow
+    {
+        public string? Message { get; set; }
+        public string? Level { get; set; }
+        public string? Exception { get; set; }
+        public DateTimeOffset? Timestamp { get; set; }
+    }
+}

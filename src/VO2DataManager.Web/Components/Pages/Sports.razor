@@ -1,0 +1,141 @@
+@page "/sports"
+@rendermode InteractiveServer
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@using Microsoft.EntityFrameworkCore
+@inject IDbContextFactory<AppDbContextAiData> DbFactory
+
+<PageTitle>Sporty — VO2 Data Manager</PageTitle>
+
+<div class="ui-page-header ui-anim-fade-up">
+    <h3><i class="bi bi-trophy me-2"></i>Sporty v AIData</h3>
+    <span class="badge bg-secondary">@_sports.Count(s => s.Teams > 0) z @_sports.Count má data</span>
+</div>
+
+@if (_loading)
+{
+    <PageLoadingSpinner />
+}
+else if (_error is not null)
+{
+    <div class="alert alert-danger ui-anim-fade-up">
+        <i class="bi bi-exclamation-triangle me-1"></i>Nepodařilo se načíst přehled: @_error
+    </div>
+}
+else
+{
+    <div class="ui-panel ui-anim-fade-up mb-3 p-3">
+        <div class="d-flex flex-wrap gap-3 align-items-center">
+            <UiSearchBar @bind-Value="_search" Placeholder="Hledat sport…"
+                         Count="@Filtered.Count()" CountLabel="sportů" />
+            <div class="form-check form-switch mb-0">
+                <input class="form-check-input" type="checkbox" id="onlyData" @bind="_onlyWithData" />
+                <label class="form-check-label text-muted small" for="onlyData">Jen sporty s daty</label>
+            </div>
+        </div>
+    </div>
+
+    <div class="ui-panel ui-anim-fade-up">
+        <div class="ui-panel-header">
+            <span class="ui-panel-title"><i class="bi bi-list-ul text-accent"></i> Pokrytí daty</span>
+            <span class="badge bg-secondary">@Filtered.Count()</span>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-hover table-sm align-middle mb-0">
+                <thead>
+                    <tr>
+                        <th>Sport</th>
+                        <th class="text-end">Týmy</th>
+                        <th class="text-end">Ligy</th>
+                        <th class="text-end">Hráči</th>
+                        <th class="text-end">Zápasy</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (!Filtered.Any())
+                    {
+                        <tr><td colspan="6" class="text-muted text-center py-4">Žádné záznamy.</td></tr>
+                    }
+                    @foreach (var s in Filtered)
+                    {
+                        <tr class="@(s.Teams == 0 ? "opacity-50" : "")">
+                            <td class="fw-semibold">@Humanize(s.Sport)</td>
+                            <td class="text-end small">@s.Teams.ToString("N0")</td>
+                            <td class="text-end small">@s.Leagues.ToString("N0")</td>
+                            <td class="text-end small">@s.Players.ToString("N0")</td>
+                            <td class="text-end small">@s.Matches.ToString("N0")</td>
+                            <td class="text-end">
+                                <a href="/sport/@s.Sport" class="btn btn-sm btn-outline-secondary">
+                                    Detail <i class="bi bi-chevron-right"></i>
+                                </a>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+        <div class="p-2 border-top border-opacity-10 text-muted small">
+            Počty jsou odhady z <code>pg_stat_user_tables</code> — po velkém importu mohou být nepřesné, dokud neproběhne ANALYZE.
+        </div>
+    </div>
+}
+
+@code {
+    // Sporty se neudržují v žádném číselníku — odvozují se z názvů tabulek `<Sport>Teams`, takže
+    // nově založený sport se objeví sám, bez zásahu do kódu.
+
+    private bool _loading = true;
+    private string? _error;
+    private string _search = "";
+    private bool _onlyWithData = true;
+    private List<SportRow> _sports = [];
+
+    private IEnumerable<SportRow> Filtered => _sports
+        .Where(s => !_onlyWithData || s.Teams > 0 || s.Matches > 0)
+        .Where(s => string.IsNullOrWhiteSpace(_search)
+                 || s.Sport.Contains(_search, StringComparison.OrdinalIgnoreCase));
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            await using var db = await DbFactory.CreateDbContextAsync();
+            const string sql = """
+                WITH t AS (
+                    SELECT relname, n_live_tup FROM pg_stat_user_tables WHERE schemaname = 'public'
+                ),
+                sports AS (
+                    -- Vazební tabulky <Sport>MatchTeams by jinak vypadaly jako samostatný sport.
+                    SELECT regexp_replace(relname, 'Teams$', '') AS sport
+                    FROM t WHERE relname ~ '^[A-Za-z]+Teams$' AND relname !~ 'MatchTeams$'
+                )
+                SELECT s.sport                                                            AS "Sport",
+                       COALESCE((SELECT n_live_tup FROM t WHERE relname = s.sport || 'Teams'), 0)   AS "Teams",
+                       COALESCE((SELECT n_live_tup FROM t WHERE relname = s.sport || 'Leagues'), 0) AS "Leagues",
+                       COALESCE((SELECT n_live_tup FROM t WHERE relname = s.sport || 'Players'), 0) AS "Players",
+                       COALESCE((SELECT n_live_tup FROM t WHERE relname = s.sport || 'Matches'), 0) AS "Matches"
+                FROM sports s
+                ORDER BY 2 DESC, 1
+                """;
+            _sports = await db.Database.SqlQueryRaw<SportRow>(sql).ToListAsync();
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+        _loading = false;
+    }
+
+    // "AmFootball" → "Am Football", ať se dlouhé CamelCase názvy daly číst.
+    private static string Humanize(string sport) =>
+        System.Text.RegularExpressions.Regex.Replace(sport, "(?<=[a-z])(?=[A-Z])", " ");
+
+    private class SportRow
+    {
+        public string Sport { get; set; } = "";
+        public long Teams { get; set; }
+        public long Leagues { get; set; }
+        public long Players { get; set; }
+        public long Matches { get; set; }
+    }
+}
